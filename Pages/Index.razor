@@ -1,0 +1,516 @@
+@page "/"
+@using CorpLinkBaseMinimal.Data
+@using CorpLinkBaseMinimal.Services
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject MessengerService MessengerService
+@inject NavigationManager Navigation
+
+<PageTitle>CorpLink</PageTitle>
+
+<div class="page">
+    <aside class="sidebar">
+        <div class="brand">CorpLink</div>
+
+        <div class="block">
+            <div class="block-title">Создать пользователя</div>
+            <div class="row">
+                <input class="input" @bind="newUserName" placeholder="Имя пользователя" />
+                <button class="btn" @onclick="CreateUser">Добавить</button>
+            </div>
+        </div>
+
+        <div class="block">
+            <div class="block-title">Текущий пользователь</div>
+            <select class="input" @bind="currentUserId">
+                <option value="0">Выбери пользователя</option>
+                @foreach (var user in users)
+                {
+                    <option value="@user.Id">@user.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="block">
+            <div class="block-title">Создать диалог</div>
+            <select class="input" @bind="otherUserId">
+                <option value="0">Выбери собеседника</option>
+                @foreach (var user in users.Where(x => x.Id != currentUserId))
+                {
+                    <option value="@user.Id">@user.Name</option>
+                }
+            </select>
+            <button class="btn full" @onclick="CreateChat">Создать чат</button>
+        </div>
+
+        <div class="block">
+            <div class="block-title">Мои чаты</div>
+
+            @if (currentUserId == 0)
+            {
+                <div class="empty">Сначала выбери пользователя.</div>
+            }
+            else if (!chats.Any())
+            {
+                <div class="empty">Чатов пока нет.</div>
+            }
+            else
+            {
+                @foreach (var chat in chats)
+                {
+                    var active = selectedChat?.Id == chat.Id;
+                    var lastMessage = chat.Messages.LastOrDefault();
+
+                    <button class="chat-item @(active ? "active" : "")" @onclick="() => SelectChat(chat.Id)">
+                        <div class="chat-title">@chat.Title</div>
+                        <div class="chat-preview">
+                            @(lastMessage is null ? "Сообщений пока нет" : lastMessage.Text)
+                        </div>
+                    </button>
+                }
+            }
+        </div>
+    </aside>
+
+    <main class="chat-panel">
+        @if (currentUserId == 0)
+        {
+            <div class="placeholder">Выбери пользователя слева.</div>
+        }
+        else if (selectedChat is null)
+        {
+            <div class="placeholder">Выбери чат или создай новый.</div>
+        }
+        else
+        {
+            <div class="chat-header">
+                <div>
+                    <div class="chat-name">@selectedChat.Title</div>
+                    <div class="chat-subtitle">
+                        Участники:
+                        @string.Join(", ", selectedChat.Participants.Select(p => p.User?.Name).Where(x => !string.IsNullOrWhiteSpace(x)))
+                    </div>
+                </div>
+            </div>
+
+            <div class="messages">
+                @if (!selectedChat.Messages.Any())
+                {
+                    <div class="empty">Сообщений пока нет.</div>
+                }
+                else
+                {
+                    @foreach (var message in selectedChat.Messages.OrderBy(x => x.CreatedAt))
+                    {
+                        var mine = message.SenderId == currentUserId;
+
+                        <div class="message-wrap @(mine ? "mine" : "other")">
+                            <div class="message-bubble">
+                                <div class="message-author">@message.Sender?.Name</div>
+                                <div>@message.Text</div>
+                                <div class="message-time">@message.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="composer">
+                <input class="input" @bind="newMessageText" @bind:event="oninput" placeholder="Введите сообщение..." />
+                <button class="btn" @onclick="SendMessage">Отправить</button>
+            </div>
+        }
+    </main>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="toast error">@errorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="toast success">@successMessage</div>
+}
+
+<style>
+    .page {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        min-height: 100vh;
+        background: #f5f7fb;
+    }
+
+    .sidebar {
+        background: white;
+        border-right: 1px solid #e4e8f0;
+        padding: 20px;
+    }
+
+    .brand {
+        font-size: 28px;
+        font-weight: 800;
+        color: #2f5fe3;
+        margin-bottom: 20px;
+    }
+
+    .block {
+        margin-bottom: 18px;
+        padding: 16px;
+        background: #f9fbff;
+        border: 1px solid #e6ecfb;
+        border-radius: 16px;
+    }
+
+    .block-title {
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+    }
+
+    .input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid #d7dfef;
+        background: white;
+        box-sizing: border-box;
+    }
+
+    .btn {
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        background: #2f5fe3;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn.full {
+        margin-top: 8px;
+        width: 100%;
+    }
+
+    .chat-item {
+        width: 100%;
+        text-align: left;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid transparent;
+        background: white;
+        margin-bottom: 8px;
+        cursor: pointer;
+    }
+
+    .chat-item.active {
+        background: #edf3ff;
+        border-color: #c9d7ff;
+    }
+
+    .chat-title {
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .chat-preview {
+        color: #667085;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .chat-panel {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        min-height: 100vh;
+    }
+
+    .chat-header {
+        padding: 18px 24px;
+        border-bottom: 1px solid #e4e8f0;
+        background: white;
+    }
+
+    .chat-name {
+        font-size: 20px;
+        font-weight: 800;
+    }
+
+    .chat-subtitle {
+        color: #667085;
+        margin-top: 4px;
+    }
+
+    .messages {
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        background: linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%);
+    }
+
+    .message-wrap {
+        display: flex;
+    }
+
+    .message-wrap.mine {
+        justify-content: flex-end;
+    }
+
+    .message-wrap.other {
+        justify-content: flex-start;
+    }
+
+    .message-bubble {
+        max-width: 70%;
+        background: white;
+        border: 1px solid #e4e8f0;
+        border-radius: 18px;
+        padding: 12px 14px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+    }
+
+    .mine .message-bubble {
+        background: #eaf1ff;
+        border-color: #cddcff;
+    }
+
+    .message-author {
+        font-size: 12px;
+        color: #2f5fe3;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .message-time {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #667085;
+        text-align: right;
+    }
+
+    .composer {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        padding: 16px 20px;
+        background: white;
+        border-top: 1px solid #e4e8f0;
+    }
+
+    .placeholder, .empty {
+        color: #667085;
+        padding: 20px;
+    }
+
+    .toast {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        color: white;
+        font-weight: 600;
+    }
+
+    .toast.error {
+        background: #dc2626;
+    }
+
+    .toast.success {
+        background: #16a34a;
+        bottom: 70px;
+    }
+</style>
+
+@code {
+    private List<User> users = new();
+    private List<Chat> chats = new();
+    private Chat? selectedChat;
+
+    private int currentUserId;
+    private int otherUserId;
+
+    private string newUserName = string.Empty;
+    private string newMessageText = string.Empty;
+
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    private HubConnection? hubConnection;
+    private int? joinedChatId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAndChatsAsync();
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<int>("ReceiveMessage", async chatId =>
+        {
+            await RefreshAfterSignalRAsync(chatId);
+        });
+
+        hubConnection.On<int>("ChatListChanged", async chatId =>
+        {
+            await RefreshAfterSignalRAsync(chatId);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task LoadUsersAndChatsAsync()
+    {
+        users = await MessengerService.GetUsersAsync();
+
+        if (currentUserId != 0)
+        {
+            chats = await MessengerService.GetChatsForUserAsync(currentUserId);
+
+            if (selectedChat is not null)
+            {
+                selectedChat = chats.FirstOrDefault(x => x.Id == selectedChat.Id);
+            }
+        }
+        else
+        {
+            chats = new List<Chat>();
+            selectedChat = null;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateUser()
+    {
+        ClearMessages();
+
+        var result = await MessengerService.CreateUserAsync(newUserName);
+        if (!result.Success)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        newUserName = string.Empty;
+        successMessage = "Пользователь создан.";
+        await LoadUsersAndChatsAsync();
+    }
+
+    private async Task CreateChat()
+    {
+        ClearMessages();
+
+        var result = await MessengerService.CreateDirectChatAsync(currentUserId, otherUserId);
+        if (!result.Success)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        otherUserId = 0;
+        successMessage = "Чат создан.";
+        await LoadUsersAndChatsAsync();
+
+        if (result.Chat is not null)
+        {
+            await SelectChat(result.Chat.Id);
+        }
+    }
+
+    private async Task SelectChat(int chatId)
+    {
+        if (currentUserId == 0)
+        {
+            return;
+        }
+
+        if (hubConnection is not null && joinedChatId.HasValue)
+        {
+            await hubConnection.SendAsync("LeaveChat", $"chat-{joinedChatId.Value}");
+        }
+
+        selectedChat = await MessengerService.GetChatForUserAsync(currentUserId, chatId);
+        joinedChatId = selectedChat?.Id;
+
+        if (hubConnection is not null && joinedChatId.HasValue)
+        {
+            await hubConnection.SendAsync("JoinChat", $"chat-{joinedChatId.Value}");
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        ClearMessages();
+
+        if (selectedChat is null)
+        {
+            errorMessage = "Сначала выбери чат.";
+            return;
+        }
+
+        var result = await MessengerService.SendMessageAsync(selectedChat.Id, currentUserId, newMessageText);
+        if (!result.Success)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        newMessageText = string.Empty;
+        selectedChat = await MessengerService.GetChatForUserAsync(currentUserId, selectedChat.Id);
+        chats = await MessengerService.GetChatsForUserAsync(currentUserId);
+    }
+
+    private async Task RefreshAfterSignalRAsync(int chatId)
+    {
+        if (currentUserId == 0)
+        {
+            return;
+        }
+
+        chats = await MessengerService.GetChatsForUserAsync(currentUserId);
+
+        if (selectedChat is not null && selectedChat.Id == chatId)
+        {
+            selectedChat = await MessengerService.GetChatForUserAsync(currentUserId, chatId);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearMessages()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            if (joinedChatId.HasValue)
+            {
+                try
+                {
+                    await hubConnection.SendAsync("LeaveChat", $"chat-{joinedChatId.Value}");
+                }
+                catch
+                {
+                }
+            }
+
+            await hubConnection.DisposeAsync();
+        }
+    }
+}
