@@ -41,5 +41,5 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider.GetRequiredService<MessengerDbContext>();
     dbContext.Database.Migrate();
 }
-
+//123
 app.Run();
