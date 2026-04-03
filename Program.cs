@@ -5,22 +5,18 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
 builder.Services.AddDbContextFactory<MessengerDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("MessengerDb")));
 
 builder.Services.AddScoped<IMessengerRepository, MessengerRepository>();
-builder.Services.AddScoped<MessengerService>();
-
 builder.Services.AddScoped<MessengerService>();
 builder.Services.AddSignalR();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
@@ -37,9 +33,9 @@ app.MapFallbackToPage("/_Host");
 
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext=
-        scope.ServiceProvider.GetRequiredService<MessengerDbContext>();
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MessengerDbContext>>();
+    using var dbContext = factory.CreateDbContext();
     dbContext.Database.Migrate();
 }
-//123
+
 app.Run();
