@@ -2,11 +2,12 @@
   "profiles": {
     "CorpLinkBaseMinimal": {
       "commandName": "Project",
+      "dotnetRunMessages": true,
       "launchBrowser": true,
+      "applicationUrl": "https://localhost:51671;https://localhost:51672;http://localhost:51670",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "https://localhost:51671;http://localhost:51672"
+      }
     }
   }
 }

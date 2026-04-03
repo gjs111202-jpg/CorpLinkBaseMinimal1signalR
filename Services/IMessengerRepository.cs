@@ -5,13 +5,13 @@ namespace CorpLinkBaseMinimal.Services;
 public interface IMessengerRepository
 {
     Task<List<User>> GetUsersAsync();
-    Task<User?> GetUserAsync(int userId);
+    Task<User?> GetUserAsync(string userId);
     Task<bool> IsUserNameExistsAsync(string name);
-    Task<User> CreateUserAsync(string name);
+    Task<User> CreateUserAsync(string userName, string displayName, string email, string password);
 
-    Task<List<Chat>> GetChatsForUserAsync(int userId);
-    Task<Chat?> GetChatForUserAsync(int userId, int chatId);
-    Task<bool> IsChatParticipantAsync(int chatId, int userId);
+    Task<List<Chat>> GetChatsForUserAsync(string userId);
+    Task<Chat?> GetChatForUserAsync(string userId, int chatId);
+    Task<bool> IsChatParticipantAsync(int chatId, string userId);
     Task<Chat?> GetChatWithParticipantsAndMessagesAsync(int chatId);
 
     Task<Chat> CreateDirectChatAsync(Chat chat);

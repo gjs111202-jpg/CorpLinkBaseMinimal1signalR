@@ -16,36 +16,46 @@ public class MessengerService
     }
 
     public async Task<List<User>> GetUsersAsync() => await _repository.GetUsersAsync();
+    public async Task<User?> GetUserAsync(string userId) => await _repository.GetUserAsync(userId);
 
-    public async Task<User?> GetUserAsync(int userId) => await _repository.GetUserAsync(userId);
-
-    public async Task<(bool Success, string Error, User? User)> CreateUserAsync(string name)
+    public async Task<(bool Success, string Error, User? User)> CreateUserAsync(string userName, string displayName, string email, string password)
     {
-        var cleanName = name.Trim();
-        if (string.IsNullOrWhiteSpace(cleanName))
-            return (false, "Введите имя пользователя.", null);
+        userName = userName.Trim();
+        displayName = displayName.Trim();
+        email = email.Trim();
 
-        if (await _repository.IsUserNameExistsAsync(cleanName))
+        if (string.IsNullOrWhiteSpace(userName))
+            return (false, "Введите имя пользователя.", null);
+        if (string.IsNullOrWhiteSpace(password))
+            return (false, "Введите пароль.", null);
+
+        if (await _repository.IsUserNameExistsAsync(userName))
             return (false, "Пользователь с таким именем уже существует.", null);
 
-        var user = await _repository.CreateUserAsync(cleanName);
-        return (true, string.Empty, user);
+        try
+        {
+            var user = await _repository.CreateUserAsync(userName, displayName, email, password);
+            return (true, string.Empty, user);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, null);
+        }
     }
 
-    public async Task<List<Chat>> GetChatsForUserAsync(int userId)
+    public async Task<List<Chat>> GetChatsForUserAsync(string userId)
         => await _repository.GetChatsForUserAsync(userId);
 
-    public async Task<Chat?> GetChatForUserAsync(int userId, int chatId)
+    public async Task<Chat?> GetChatForUserAsync(string userId, int chatId)
         => await _repository.GetChatForUserAsync(userId, chatId);
 
-    public async Task<(bool Success, string Error, Chat? Chat)> CreateDirectChatAsync(int currentUserId, int otherUserId)
+    public async Task<(bool Success, string Error, Chat? Chat)> CreateDirectChatAsync(string currentUserId, string otherUserId)
     {
-        if (currentUserId == 0 || otherUserId == 0)
-            return (false, "Выбери двух пользователей.", null);
+        if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrEmpty(otherUserId))
+            return (false, "Выберите двух пользователей.", null);
         if (currentUserId == otherUserId)
             return (false, "Нельзя создать чат с самим собой.", null);
 
-        // Проверяем, не существует ли уже такой чат
         var existing = (await _repository.GetChatsForUserAsync(currentUserId))
             .FirstOrDefault(c => c.Participants.Count == 2
                 && c.Participants.Any(p => p.UserId == currentUserId)
@@ -60,7 +70,7 @@ public class MessengerService
 
         var chat = new Chat
         {
-            Title = $"{currentUser.Name} / {otherUser.Name}",
+            Title = $"{currentUser.DisplayName ?? currentUser.UserName} / {otherUser.DisplayName ?? otherUser.UserName}",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Participants = new List<ChatParticipant>
@@ -71,14 +81,12 @@ public class MessengerService
         };
 
         await _repository.CreateDirectChatAsync(chat);
-
         var createdChat = await _repository.GetChatWithParticipantsAndMessagesAsync(chat.Id);
         await _hubContext.Clients.Group($"chat-{createdChat!.Id}").SendAsync("ChatListChanged", createdChat.Id);
-
         return (true, string.Empty, createdChat);
     }
 
-    public async Task<(bool Success, string Error, Message? Message)> SendMessageAsync(int chatId, int senderId, string text)
+    public async Task<(bool Success, string Error, Message? Message)> SendMessageAsync(int chatId, string senderId, string text)
     {
         var cleanText = text.Trim();
         if (string.IsNullOrWhiteSpace(cleanText))

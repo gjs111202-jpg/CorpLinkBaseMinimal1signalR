@@ -1,41 +1,41 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace CorpLinkBaseMinimal.Data
 {
-    public class MessengerDbContext : DbContext
+    public class MessengerDbContext : IdentityDbContext<User>
     {
         public MessengerDbContext(DbContextOptions<MessengerDbContext> options)
             : base(options)
         {
         }
 
-        public DbSet<User> Users => Set<User>();
         public DbSet<Chat> Chats => Set<Chat>();
         public DbSet<ChatParticipant> ChatParticipants => Set<ChatParticipant>();
         public DbSet<Message> Messages => Set<Message>();
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder builder)
         {
-            base.OnModelCreating(modelBuilder);
+            base.OnModelCreating(builder);
 
-            modelBuilder.Entity<ChatParticipant>()
+            builder.Entity<ChatParticipant>()
                 .HasOne(x => x.Chat)
                 .WithMany(x => x.Participants)
                 .HasForeignKey(x => x.ChatId);
 
-            modelBuilder.Entity<ChatParticipant>()
+            builder.Entity<ChatParticipant>()
                 .HasOne(x => x.User)
-                .WithMany()
+                .WithMany(x => x.ChatParticipants)
                 .HasForeignKey(x => x.UserId);
 
-            modelBuilder.Entity<Message>()
+            builder.Entity<Message>()
                 .HasOne(x => x.Chat)
                 .WithMany(x => x.Messages)
                 .HasForeignKey(x => x.ChatId);
 
-            modelBuilder.Entity<Message>()
+            builder.Entity<Message>()
                 .HasOne(x => x.Sender)
-                .WithMany()
+                .WithMany(x => x.Messages)
                 .HasForeignKey(x => x.SenderId);
         }
     }
