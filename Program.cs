@@ -12,6 +12,9 @@ builder.Services.AddServerSideBlazor();
 builder.Services.AddDbContextFactory<MessengerDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<IMessengerRepository, MessengerRepository>();
+builder.Services.AddScoped<MessengerService>();
+
 builder.Services.AddScoped<MessengerService>();
 builder.Services.AddSignalR();
 
