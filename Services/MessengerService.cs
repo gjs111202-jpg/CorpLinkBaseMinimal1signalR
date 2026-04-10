@@ -110,4 +110,44 @@ public class MessengerService
         await _hubContext.Clients.Group($"chat-{chatId}").SendAsync("ReceiveMessage", chatId);
         return (true, string.Empty, message);
     }
+
+    public async Task<(bool Success, string Error)> UpdateMessageAsync(int chatId, int messageId, string userId, string text)
+    {
+        var cleanText = text.Trim();
+        if (string.IsNullOrWhiteSpace(cleanText))
+            return (false, "Введите текст сообщения.");
+
+        if (!await _repository.IsChatParticipantAsync(chatId, userId))
+            return (false, "Нет доступа к чату.");
+
+        var owned = await _repository.GetMessageOwnedByUserAsync(chatId, messageId, userId);
+        if (owned is null)
+            return (false, "Сообщение не найдено или вы не можете его изменить.");
+
+        var ok = await _repository.UpdateMessageTextAsync(messageId, cleanText, DateTime.UtcNow);
+        if (!ok)
+            return (false, "Не удалось сохранить изменения.");
+
+        await _repository.UpdateChatUpdatedAtAsync(chatId, DateTime.UtcNow);
+        await _hubContext.Clients.Group($"chat-{chatId}").SendAsync("ReceiveMessage", chatId);
+        return (true, string.Empty);
+    }
+
+    public async Task<(bool Success, string Error)> DeleteMessageAsync(int chatId, int messageId, string userId)
+    {
+        if (!await _repository.IsChatParticipantAsync(chatId, userId))
+            return (false, "Нет доступа к чату.");
+
+        var owned = await _repository.GetMessageOwnedByUserAsync(chatId, messageId, userId);
+        if (owned is null)
+            return (false, "Сообщение не найдено или вы не можете его удалить.");
+
+        var ok = await _repository.DeleteMessageAsync(messageId);
+        if (!ok)
+            return (false, "Не удалось удалить сообщение.");
+
+        await _repository.UpdateChatUpdatedAtAsync(chatId, DateTime.UtcNow);
+        await _hubContext.Clients.Group($"chat-{chatId}").SendAsync("ReceiveMessage", chatId);
+        return (true, string.Empty);
+    }
 }

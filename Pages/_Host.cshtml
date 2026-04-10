@@ -14,5 +14,14 @@
 <body>
     <component type="typeof(App)" render-mode="ServerPrerendered" />
     <script src="_framework/blazor.server.js"></script>
+    <script>
+        function forceRedirect(url) {
+            window.location.href = url;
+        }
+        function submitFormById(id) {
+            var el = document.getElementById(id);
+            if (el) el.submit();
+        }
+    </script>
 </body>
 </html>

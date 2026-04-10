@@ -83,6 +83,9 @@ namespace CorpLinkBaseMinimal.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("EditedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SenderId")
                         .IsRequired()
                         .HasColumnType("text");

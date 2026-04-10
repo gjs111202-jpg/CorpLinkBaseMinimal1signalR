@@ -11,5 +11,6 @@ namespace CorpLinkBaseMinimal.Data
 
         public string Text { get; set; } = "";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? EditedAt { get; set; }
     }
 }

@@ -1,0 +1,65 @@
+﻿@page "/login"
+@using CorpLinkBaseMinimal.Auth
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [AllowAnonymous]
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthProvider
+
+<h3>Вход</h3>
+
+<form method="post" action="/auth/login">
+    <input type="hidden" name="ReturnUrl" value="@returnUrl" />
+    <div class="form-group">
+        <label>Логин или Email</label>
+        <input class="form-control" name="UsernameOrEmail" value="@usernameOrEmail" required autocomplete="username" />
+    </div>
+    <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" class="form-control" name="Password" required autocomplete="current-password" />
+    </div>
+    <button type="submit" class="btn btn-primary">Войти</button>
+    <a href="@RegisterLink" class="btn btn-link">Нет аккаунта? Зарегистрироваться</a>
+</form>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@code {
+    private string returnUrl = "/";
+    private string usernameOrEmail = "";
+    private string errorMessage = "";
+    private string RegisterLink => string.IsNullOrEmpty(returnUrl) || returnUrl == "/"
+        ? "/register"
+        : $"/register?returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("returnUrl", out var parsedReturnUrl))
+        {
+            var candidate = parsedReturnUrl.ToString();
+            returnUrl = ReturnUrlHelper.Sanitize(candidate);
+        }
+
+        if (query.TryGetValue("error", out var err))
+        {
+            errorMessage = err.ToString() switch
+            {
+                "credentials" => "Неверный логин или пароль.",
+                _ => errorMessage
+            };
+        }
+    }
+}

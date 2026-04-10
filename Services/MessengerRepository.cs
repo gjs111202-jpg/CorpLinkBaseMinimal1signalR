@@ -116,4 +116,35 @@ public class MessengerRepository : IMessengerRepository
         await db.Entry(message).Reference(m => m.Sender).LoadAsync();
         return message;
     }
+
+    public async Task<Message?> GetMessageOwnedByUserAsync(int chatId, int messageId, string senderId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Messages
+            .AsTracking()
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ChatId == chatId && m.SenderId == senderId);
+    }
+
+    public async Task<bool> UpdateMessageTextAsync(int messageId, string newText, DateTime editedAtUtc)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (msg is null)
+            return false;
+        msg.Text = newText;
+        msg.EditedAt = editedAtUtc;
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteMessageAsync(int messageId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (msg is null)
+            return false;
+        db.Messages.Remove(msg);
+        await db.SaveChangesAsync();
+        return true;
+    }
 }

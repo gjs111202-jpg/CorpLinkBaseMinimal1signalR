@@ -18,4 +18,8 @@ public interface IMessengerRepository
     Task<Message> AddMessageAsync(Message message);
     Task UpdateChatUpdatedAtAsync(int chatId, DateTime updatedAt);
     Task<Message?> LoadMessageWithSenderAsync(Message message);
+
+    Task<Message?> GetMessageOwnedByUserAsync(int chatId, int messageId, string senderId);
+    Task<bool> UpdateMessageTextAsync(int messageId, string newText, DateTime editedAtUtc);
+    Task<bool> DeleteMessageAsync(int messageId);
 }

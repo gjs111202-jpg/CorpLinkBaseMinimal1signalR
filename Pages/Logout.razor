@@ -1,0 +1,15 @@
+﻿@page "/logout"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject IJSRuntime JS
+
+<form method="post" action="/auth/logout" id="logoutForm"></form>
+<p>Выход...</p>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("submitFormById", "logoutForm");
+    }
+}

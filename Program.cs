@@ -1,3 +1,4 @@
+п»їusing CorpLinkBaseMinimal.Auth;
 using CorpLinkBaseMinimal.Data;
 using CorpLinkBaseMinimal.Hubs;
 using CorpLinkBaseMinimal.Services;
@@ -6,16 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
-// Регистрация DbContextFactory
 builder.Services.AddDbContextFactory<MessengerDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// --- НАСТРОЙКА IDENTITY ---
-// Добавляем Identity с нашими типами User и Role
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
     options.Password.RequireDigit = false;
@@ -24,19 +21,20 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
     options.Password.RequireUppercase = false;
     options.Password.RequireLowercase = false;
 })
-    .AddEntityFrameworkStores<MessengerDbContext>() // Говорим Identity использовать наш DbContext
-    .AddDefaultTokenProviders();
+.AddEntityFrameworkStores<MessengerDbContext>()
+.AddDefaultTokenProviders();
 
-// Настройка аутентификации через Cookies
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.LoginPath = "/login";      // URL страницы входа
-    options.LogoutPath = "/logout";    // URL для выхода
+    options.Cookie.Name = builder.Configuration["Auth:CookieName"] ?? ".CorpLink.Auth";
+    options.LoginPath = "/login";
+    options.LogoutPath = "/logout";
     options.ExpireTimeSpan = TimeSpan.FromDays(14);
     options.SlidingExpiration = true;
 });
 
-// --- КОНЕЦ НАСТРОЙКИ IDENTITY ---
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<IMessengerRepository, MessengerRepository>();
 builder.Services.AddScoped<MessengerService>();
@@ -44,7 +42,6 @@ builder.Services.AddSignalR();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
@@ -55,8 +52,59 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 
-app.UseAuthentication();   // Добавляет middleware для аутентификации
-app.UseAuthorization();    // Добавляет middleware для авторизации
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapPost("/auth/login", async (HttpContext context, SignInManager<User> signInManager) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var usernameOrEmail = form["UsernameOrEmail"].ToString();
+    var password = form["Password"].ToString();
+    var returnUrl = ReturnUrlHelper.Sanitize(form["ReturnUrl"].ToString());
+
+    var user = await signInManager.UserManager.FindByNameAsync(usernameOrEmail);
+    if (user is null)
+        user = await signInManager.UserManager.FindByEmailAsync(usernameOrEmail);
+
+    if (user is null)
+        return Results.Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&error=credentials");
+
+    var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: true, lockoutOnFailure: false);
+    if (!result.Succeeded)
+        return Results.Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}&error=credentials");
+
+    return Results.Redirect(returnUrl);
+});
+
+app.MapPost("/auth/register", async (HttpContext context, UserManager<User> userManager, SignInManager<User> signInManager) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var userName = form["UserName"].ToString();
+    var displayName = form["DisplayName"].ToString();
+    var email = form["Email"].ToString();
+    var password = form["Password"].ToString();
+    var returnUrl = ReturnUrlHelper.Sanitize(form["ReturnUrl"].ToString());
+
+    var user = new User
+    {
+        UserName = userName,
+        Email = email,
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName
+    };
+
+    var createResult = await userManager.CreateAsync(user, password);
+    if (!createResult.Succeeded)
+        return Results.Redirect($"/register?returnUrl={Uri.EscapeDataString(returnUrl)}&error=create");
+
+    await signInManager.SignInAsync(user, isPersistent: false);
+    return Results.Redirect(returnUrl);
+});
+
+app.MapPost("/auth/logout", async (SignInManager<User> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/login");
+});
 
 app.MapBlazorHub();
 app.MapHub<ChatHub>("/chathub");
@@ -64,7 +112,8 @@ app.MapFallbackToPage("/_Host");
 
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<MessengerDbContext>();
+    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MessengerDbContext>>();
+    await using var dbContext = await dbFactory.CreateDbContextAsync();
     dbContext.Database.Migrate();
 }
 

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CorpLinkBaseMinimal.Migrations
 {
     [DbContext(typeof(MessengerDbContext))]
-    [Migration("20260403161242_InitialCreate")]
+    [Migration("20260410180400_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -84,6 +84,9 @@ namespace CorpLinkBaseMinimal.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EditedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SenderId")
