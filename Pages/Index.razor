@@ -5,6 +5,8 @@
 @using CorpLinkBaseMinimal.Data
 @using CorpLinkBaseMinimal.Services
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Components.Web
+
 @attribute [Authorize]
 @implements IAsyncDisposable
 @inject MessengerService MessengerService
@@ -117,8 +119,12 @@
                 }
             </div>
             <div class="composer">
-                <input class="input" @bind="newMessageText" @bind:event="oninput" placeholder="Введите сообщение..." />
-                <button class="btn" @onclick="SendMessage">Отправить</button>
+               <input class="input"
+                     @bind="newMessageText"
+                     @bind:event="oninput"
+                     @onkeydown="HandleMessageKeyDown"
+                     placeholder="Введите сообщение..." />
+                    <button class="btn" @onclick="SendMessage">Отправить</button>
             </div>
         }
     </main>
@@ -401,6 +407,14 @@
 
         await hubConnection.StartAsync();
     }
+
+    private async Task HandleMessageKeyDown(KeyboardEventArgs e)
+{
+    if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newMessageText))
+    {
+        await SendMessage();
+    }
+}
 
     private async Task LoadUsersAndChatsAsync()
     {
