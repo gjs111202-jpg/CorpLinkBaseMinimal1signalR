@@ -1,14 +1,5 @@
 {
   "profiles": {
-    "CorpLinkBaseMinimal": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "applicationUrl": "https://localhost:51671;https://localhost:51672;http://localhost:51670",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    },
     "CorpLinkBaseMinimal-51671": {
       "commandName": "Project",
       "dotnetRunMessages": true,
@@ -27,6 +18,16 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Auth__CookieName": ".CorpLink.Auth.51672"
+      }
+    },
+    "CorpLinkBaseMinimal-BothPorts": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:51671;https://localhost:51672;http://localhost:51670",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Auth__CookieName": ".CorpLink.Auth.shared"
       }
     }
   }

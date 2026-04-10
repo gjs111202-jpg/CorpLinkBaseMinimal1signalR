@@ -26,7 +26,9 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.Cookie.Name = builder.Configuration["Auth:CookieName"] ?? ".CorpLink.Auth";
+    // На localhost cookie не различает порты: одно имя = одна сессия на всех портах.
+    // Если Auth:CookieName не задан, имя строится из порта первого URL (разные процессы на 51671 и 51672 = разные cookie).
+    options.Cookie.Name = ResolveAuthCookieName(builder.Configuration);
     options.LoginPath = "/login";
     options.LogoutPath = "/logout";
     options.ExpireTimeSpan = TimeSpan.FromDays(14);
@@ -118,3 +120,19 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+static string ResolveAuthCookieName(IConfiguration configuration)
+{
+    var explicitName = configuration["Auth:CookieName"];
+    if (!string.IsNullOrWhiteSpace(explicitName))
+        return explicitName.Trim();
+
+    var urls = configuration["ASPNETCORE_URLS"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "";
+    foreach (var raw in urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        if (Uri.TryCreate(raw, UriKind.Absolute, out var uri) && uri is { Scheme: "http" or "https", Port: > 0 })
+            return $".CorpLink.Auth.{uri.Port}";
+    }
+
+    return ".CorpLink.Auth";
+}
