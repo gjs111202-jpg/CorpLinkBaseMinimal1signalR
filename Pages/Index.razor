@@ -18,19 +18,28 @@
 
 <div class="chat-layout">
     <aside class="sidebar">
-        <div class="brand">CorpLink</div>
+        <div class="brand">💬 CorpLink</div>
+        
         <div class="block">
-            <div class="block-title">Мой профиль</div>
+            <div class="block-title">👤 Мой профиль</div>
             <div class="current-user">
-                @{
-                    var displayName = users.FirstOrDefault(u => u.Id == currentUserId)?.DisplayName ?? currentUserId;
-                }
-                @displayName
+                <div class="user-avatar">
+                    @{
+                        var displayName = users.FirstOrDefault(u => u.Id == currentUserId)?.DisplayName ?? currentUserId;
+                        var initials = displayName.Length >= 2 ? displayName[..2].ToUpper() : displayName[..1].ToUpper();
+                    }
+                    @initials
+                </div>
+                <div class="user-info">
+                    <div class="user-name">@displayName</div>
+                    <div class="user-status online">🟢 Онлайн</div>
+                </div>
             </div>
-            <a class="btn btn-logout" href="/logout">Выйти</a>
+            <a class="btn btn-logout" href="/logout">🚪 Выйти</a>
         </div>
+
         <div class="block">
-            <div class="block-title">Новый диалог</div>
+            <div class="block-title">➕ Новый диалог</div>
             <select class="input" @bind="otherUserId">
                 <option value="">Выберите собеседника</option>
                 @foreach (var user in users.Where(u => u.Id != currentUserId))
@@ -38,48 +47,85 @@
                     <option value="@user.Id">@(user.DisplayName ?? user.UserName)</option>
                 }
             </select>
-            <button class="btn full" @onclick="CreateChat">Создать чат</button>
+            <button class="btn full" @onclick="CreateChat">✨ Создать чат</button>
         </div>
+
         <div class="block">
-            <div class="block-title">Мои чаты</div>
-            @if (!chats.Any())
-            {
-                <div class="empty">У вас пока нет чатов</div>
-            }
-            else
-            {
-                @foreach (var chat in chats)
+            <div class="block-title">💬 Мои чаты</div>
+            <div class="chats-container">
+                @if (!chats.Any())
                 {
-                    var active = selectedChat?.Id == chat.Id;
-                    var lastMessage = chat.Messages.LastOrDefault();
-                    <button class="chat-item @(active ? "active" : "")" @onclick="() => SelectChat(chat.Id)">
-                        <div class="chat-title">@chat.Title</div>
-                        <div class="chat-preview">
-                            @(lastMessage is null ? "Нет сообщений" : lastMessage.Text)
-                        </div>
-                    </button>
+                    <div class="empty">📭 У вас пока нет чатов</div>
                 }
-            }
+                else
+                {
+                    @foreach (var chat in chats.OrderByDescending(c => c.Messages.LastOrDefault()?.CreatedAt))
+                    {
+                        var active = selectedChat?.Id == chat.Id;
+                        var lastMessage = chat.Messages.LastOrDefault();
+                        var otherUser = chat.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User;
+                        var chatTitle = otherUser?.DisplayName ?? otherUser?.UserName ?? chat.Title;
+                        
+                        <div class="chat-item @(active ? "active" : "")" @onclick="() => SelectChat(chat.Id)">
+                            <div class="chat-avatar">
+                                @(chatTitle.Length >= 2 ? chatTitle[..2].ToUpper() : chatTitle[..1].ToUpper())
+                            </div>
+                            <div class="chat-content">
+                                <div class="chat-title">@chatTitle</div>
+                                <div class="chat-preview">
+                                    @if (lastMessage is null)
+                                    {
+                                        <span>📝 Нет сообщений</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@(lastMessage.SenderId == currentUserId ? "✏️ Вы: " : "")@(lastMessage.Text.Length > 30 ? lastMessage.Text[..30] + "..." : lastMessage.Text)</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (lastMessage != null)
+                            {
+                                <div class="chat-time">@lastMessage.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
         </div>
     </aside>
 
     <main class="chat-panel">
         @if (selectedChat is null)
         {
-            <div class="placeholder">Выберите чат или создайте новый</div>
+            <div class="placeholder">
+                <div class="placeholder-icon">💬</div>
+                <h3>Выберите чат</h3>
+                <p>Начните диалог или создайте новый чат</p>
+            </div>
         }
         else
         {
             <div class="chat-header">
-                <div class="chat-name">@selectedChat.Title</div>
-                <div class="chat-subtitle">
-                    Участники: @string.Join(", ", selectedChat.Participants.Select(p => p.User?.DisplayName ?? p.User?.UserName))
+                <div class="chat-header-info">
+                    <div class="chat-header-avatar">
+                        @(selectedChatTitle.Length >= 2 ? selectedChatTitle[..2].ToUpper() : selectedChatTitle[..1].ToUpper())
+                    </div>
+                    <div>
+                        <div class="chat-name">@selectedChatTitle</div>
+                        <div class="chat-subtitle">
+                            👥 @string.Join(", ", selectedChat.Participants.Select(p => p.User?.DisplayName ?? p.User?.UserName))
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="messages">
+            
+            <div class="messages" @ref="messagesContainer">
                 @if (!selectedChat.Messages.Any())
                 {
-                    <div class="empty">Напишите первое сообщение</div>
+                    <div class="empty-messages">
+                        <div class="empty-icon">💭</div>
+                        <p>Напишите первое сообщение</p>
+                    </div>
                 }
                 else
                 {
@@ -89,12 +135,13 @@
                         <div class="message-wrap @(mine ? "mine" : "other")">
                             <div class="message-bubble">
                                 <div class="message-author">@(message.Sender?.DisplayName ?? message.Sender?.UserName)</div>
+                                
                                 @if (mine && editingMessageId == message.Id)
                                 {
                                     <textarea class="input edit-area" @bind="editMessageText" @bind:event="oninput" rows="3"></textarea>
                                     <div class="message-actions">
-                                        <button type="button" class="btn btn-sm" @onclick="SaveEditAsync">Сохранить</button>
-                                        <button type="button" class="btn btn-sm btn-secondary" @onclick="CancelEdit">Отмена</button>
+                                        <button class="btn btn-sm" @onclick="SaveEditAsync">💾 Сохранить</button>
+                                        <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">❌ Отмена</button>
                                     </div>
                                 }
                                 else
@@ -102,13 +149,17 @@
                                     <div class="message-body">@message.Text</div>
                                     @if (message.EditedAt.HasValue)
                                     {
-                                        <div class="message-edited">изменено</div>
+                                        <div class="message-edited">✏️ изменено</div>
                                     }
                                     @if (mine)
                                     {
                                         <div class="message-actions">
-                                            <button type="button" class="btn-link" @onclick="() => StartEdit(message)">Изменить</button>
-                                            <button type="button" class="btn-link danger" @onclick="() => DeleteMessageAsync(message)">Удалить</button>
+                                            <button class="icon-btn edit-btn" @onclick="() => StartEdit(message)" title="Изменить">
+                                                ✏️ Изменить
+                                            </button>
+                                            <button class="icon-btn delete-btn" @onclick="() => DeleteMessageAsync(message)" title="Удалить">
+                                                🗑️ Удалить
+                                            </button>
                                         </div>
                                     }
                                 }
@@ -117,14 +168,21 @@
                         </div>
                     }
                 }
+                <div class="scroll-anchor"></div>
             </div>
+            
             <div class="composer">
-               <input class="input"
-                     @bind="newMessageText"
-                     @bind:event="oninput"
-                     @onkeydown="HandleMessageKeyDown"
-                     placeholder="Введите сообщение..." />
-                    <button class="btn" @onclick="SendMessage">Отправить</button>
+                <div class="composer-wrapper">
+                    <input class="input"
+                           @bind="newMessageText"
+                           @bind:event="oninput"
+                           @onkeydown="HandleMessageKeyDown"
+                           placeholder="✏️ Введите сообщение..."
+                           @ref="messageInput" />
+                    <button class="btn send-btn" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(newMessageText)">
+                        📤 Отправить
+                    </button>
+                </div>
             </div>
         }
     </main>
@@ -132,234 +190,525 @@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="toast error">@errorMessage</div>
+    <div class="toast error">
+        <span>❌</span> @errorMessage
+    </div>
 }
 @if (!string.IsNullOrWhiteSpace(successMessage))
 {
-    <div class="toast success">@successMessage</div>
+    <div class="toast success">
+        <span>✅</span> @successMessage
+    </div>
 }
 
+<script>
+    window.scrollToBottom = (element) => {
+        if (element) {
+            element.scrollTop = element.scrollHeight;
+        }
+    };
+</script>
+
 <style>
-    /* Ваши стили остаются без изменений */
-    .chat-layout {
-        display: grid;
-        grid-template-columns: 340px 1fr;
-        min-height: 100vh;
-        background: #f5f7fb;
-    }
-    .sidebar {
-        background: white;
-        border-right: 1px solid #e4e8f0;
-        padding: 20px;
-    }
-    .brand {
-        font-size: 28px;
-        font-weight: 800;
-        color: #2f5fe3;
-        margin-bottom: 20px;
-    }
-    .block {
-        margin-bottom: 18px;
-        padding: 16px;
-        background: #f9fbff;
-        border: 1px solid #e6ecfb;
-        border-radius: 16px;
-    }
-    .block-title {
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
-    .input {
-        width: 100%;
-        padding: 12px 14px;
-        border-radius: 12px;
-        border: 1px solid #d7dfef;
-        background: white;
+    * {
+        margin: 0;
+        padding: 0;
         box-sizing: border-box;
     }
+
+    .chat-layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        min-height: 100vh;
+        background: #f0f2f5;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .sidebar {
+        background: white;
+        border-right: 1px solid #e4e6eb;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    .brand {
+        font-size: 24px;
+        font-weight: 800;
+        padding: 20px;
+        color: #2f5fe3;
+        border-bottom: 1px solid #e4e6eb;
+    }
+
+    .block {
+        margin: 16px;
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 16px;
+    }
+
+    .block-title {
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: #1e293b;
+        font-size: 14px;
+    }
+
+    .current-user {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding: 8px;
+        background: white;
+        border-radius: 12px;
+    }
+
+    .user-avatar {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #2f5fe3, #1e40af);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    .user-info {
+        flex: 1;
+    }
+
+    .user-name {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .user-status.online {
+        font-size: 12px;
+        color: #22c55e;
+    }
+
+    .input {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 12px;
+        border: 1px solid #d1d5db;
+        background: white;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+
+    .input:focus {
+        outline: none;
+        border-color: #2f5fe3;
+        box-shadow: 0 0 0 3px rgba(47, 95, 227, 0.1);
+    }
+
     .btn {
-        padding: 12px 16px;
+        padding: 10px 16px;
         border: none;
         border-radius: 12px;
         background: #2f5fe3;
         color: white;
         font-weight: 600;
         cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
     }
+
+    .btn:hover {
+        background: #1e40af;
+        transform: translateY(-1px);
+    }
+
     .btn.full {
+        width: 100%;
         margin-top: 8px;
-        width: 100%;
     }
+
     .btn.btn-logout {
-        margin-top: 10px;
-        display: inline-block;
-        text-decoration: none;
-        text-align: center;
-        background: #475467;
-    }
-    .chat-item {
+        background: #ef4444;
         width: 100%;
-        text-align: left;
+        text-align: center;
+        display: block;
+        text-decoration: none;
+    }
+
+    .btn.btn-logout:hover {
+        background: #dc2626;
+    }
+
+    .btn.btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    .btn.btn-secondary {
+        background: #6b7280;
+    }
+
+    .chats-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .chat-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         padding: 12px;
-        border-radius: 14px;
-        border: 1px solid transparent;
-        background: white;
-        margin-bottom: 8px;
+        border-radius: 12px;
         cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 6px;
     }
+
+    .chat-item:hover {
+        background: #eef2ff;
+    }
+
     .chat-item.active {
-        background: #edf3ff;
-        border-color: #c9d7ff;
+        background: #eef2ff;
+        border-left: 3px solid #2f5fe3;
     }
+
+    .chat-avatar {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #c7d2fe, #a5b4fc);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #2f5fe3;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .chat-content {
+        flex: 1;
+        min-width: 0;
+    }
+
     .chat-title {
-        font-weight: 700;
+        font-weight: 600;
+        color: #1e293b;
         margin-bottom: 4px;
     }
+
     .chat-preview {
-        color: #667085;
         font-size: 13px;
+        color: #64748b;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .chat-panel {
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        min-height: 100vh;
+
+    .chat-time {
+        font-size: 11px;
+        color: #94a3b8;
+        flex-shrink: 0;
     }
-    .chat-header {
-        padding: 18px 24px;
-        border-bottom: 1px solid #e4e8f0;
+
+    .chat-panel {
+        display: flex;
+        flex-direction: column;
         background: white;
     }
+
+    .placeholder {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        color: #94a3b8;
+    }
+
+    .placeholder-icon {
+        font-size: 64px;
+    }
+
+    .placeholder h3 {
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .chat-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid #e4e6eb;
+        background: white;
+    }
+
+    .chat-header-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .chat-header-avatar {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #c7d2fe, #a5b4fc);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #2f5fe3;
+        font-size: 18px;
+    }
+
     .chat-name {
-        font-size: 20px;
-        font-weight: 800;
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e293b;
     }
+
     .chat-subtitle {
-        color: #667085;
-        margin-top: 4px;
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 2px;
     }
+
     .messages {
+        flex: 1;
         padding: 20px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        background: linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%);
+        background: #f8fafc;
     }
+
     .message-wrap {
         display: flex;
+        animation: fadeIn 0.2s ease;
     }
+
     .message-wrap.mine {
         justify-content: flex-end;
     }
+
     .message-wrap.other {
         justify-content: flex-start;
     }
+
     .message-bubble {
         max-width: 70%;
+        padding: 10px 14px;
+        border-radius: 18px;
         background: white;
         border: 1px solid #e4e8f0;
-        border-radius: 18px;
-        padding: 12px 14px;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
+
     .mine .message-bubble {
-        background: #eaf1ff;
-        border-color: #cddcff;
+        background: #2f5fe3;
+        border-color: #2f5fe3;
+        color: white;
     }
+
     .message-author {
         font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .mine .message-author {
+        color: #bfdbfe;
+    }
+
+    .other .message-author {
         color: #2f5fe3;
-        font-weight: 700;
-        margin-bottom: 6px;
     }
+
     .message-body {
+        font-size: 14px;
+        word-wrap: break-word;
         white-space: pre-wrap;
-        word-break: break-word;
     }
+
     .message-edited {
         margin-top: 4px;
-        font-size: 11px;
-        color: #98a2b3;
+        font-size: 10px;
+        opacity: 0.7;
         font-style: italic;
     }
+
     .message-actions {
         margin-top: 8px;
         display: flex;
         gap: 12px;
-        flex-wrap: wrap;
-        align-items: center;
     }
-    .btn-link {
+
+    .icon-btn {
         background: none;
         border: none;
-        padding: 0;
-        color: #2f5fe3;
         font-size: 12px;
-        font-weight: 600;
         cursor: pointer;
-        text-decoration: underline;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-weight: 500;
     }
-    .btn-link.danger {
-        color: #b42318;
+
+    .edit-btn {
+        color: #2f5fe3;
     }
-    .btn.btn-sm {
-        padding: 8px 12px;
-        font-size: 13px;
-        border-radius: 10px;
+
+    .edit-btn:hover {
+        background: #eef2ff;
     }
-    .btn.btn-secondary {
-        background: #e4e8f0;
-        color: #344054;
+
+    .delete-btn {
+        color: #ef4444;
     }
+
+    .delete-btn:hover {
+        background: #fef2f2;
+    }
+
     .edit-area {
         margin-top: 6px;
         resize: vertical;
         min-height: 64px;
         font-family: inherit;
     }
+
     .message-time {
-        margin-top: 8px;
-        font-size: 12px;
-        color: #667085;
+        font-size: 10px;
+        margin-top: 4px;
         text-align: right;
+        opacity: 0.7;
     }
+
+    .empty-messages {
+        text-align: center;
+        padding: 60px;
+        color: #94a3b8;
+    }
+
+    .empty-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+
     .composer {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
         padding: 16px 20px;
         background: white;
-        border-top: 1px solid #e4e8f0;
+        border-top: 1px solid #e4e6eb;
     }
-    .placeholder, .empty {
-        color: #667085;
-        padding: 20px;
-        text-align: center;
+
+    .composer-wrapper {
+        display: flex;
+        gap: 12px;
     }
+
+    .composer .input {
+        flex: 1;
+    }
+
+    .send-btn {
+        padding: 10px 24px;
+        white-space: nowrap;
+    }
+
+    .send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
     .toast {
         position: fixed;
-        right: 20px;
-        bottom: 20px;
-        padding: 12px 16px;
+        bottom: 24px;
+        right: 24px;
+        padding: 12px 20px;
         border-radius: 12px;
         color: white;
-        font-weight: 600;
+        font-weight: 500;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: slideIn 0.3s ease;
     }
+
     .toast.error {
-        background: #dc2626;
+        background: #ef4444;
     }
+
     .toast.success {
-        background: #16a34a;
-        bottom: 70px;
+        background: #22c55e;
     }
-    .current-user {
-        font-weight: 600;
-        padding: 8px;
-        background: #eaf1ff;
-        border-radius: 12px;
+
+    .empty {
+        text-align: center;
+        color: #94a3b8;
+        padding: 20px;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+
+    @@media (max-width: 768px) {
+        .chat-layout {
+            grid-template-columns: 1fr;
+        }
+        
+        .message-bubble {
+            max-width: 85%;
+        }
+        
+        .chat-header {
+            padding: 12px 16px;
+        }
+        
+        .messages {
+            padding: 12px;
+        }
+        
+        .composer {
+            padding: 12px;
+        }
     }
 </style>
 
@@ -376,6 +725,13 @@
     private string currentUserId = string.Empty;
     private int? editingMessageId;
     private string editMessageText = string.Empty;
+    private ElementReference messagesContainer;
+    private ElementReference messageInput;
+
+    private string selectedChatTitle => selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.DisplayName ?? 
+                                        selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.UserName ?? 
+                                        selectedChat?.Title ?? "Чат";
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthProvider.GetAuthenticationStateAsync();
@@ -385,6 +741,14 @@
         {
             await LoadUsersAndChatsAsync();
             await InitializeSignalRAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (selectedChat != null && messagesContainer.Id != null)
+        {
+            await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
         }
     }
 
@@ -398,6 +762,7 @@
         hubConnection.On<int>("ReceiveMessage", async chatId =>
         {
             await RefreshAfterSignalRAsync(chatId);
+            await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
         });
 
         hubConnection.On<int>("ChatListChanged", async chatId =>
@@ -409,12 +774,12 @@
     }
 
     private async Task HandleMessageKeyDown(KeyboardEventArgs e)
-{
-    if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newMessageText))
     {
-        await SendMessage();
+        if (e.Key == "Enter" && !e.ShiftKey && !string.IsNullOrWhiteSpace(newMessageText) && editingMessageId == null)
+        {
+            await SendMessage();
+        }
     }
-}
 
     private async Task LoadUsersAndChatsAsync()
     {
@@ -472,6 +837,7 @@
             await hubConnection.SendAsync("JoinChat", $"chat-{joinedChatId.Value}");
 
         await InvokeAsync(StateHasChanged);
+        await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
     }
 
     private void StartEdit(Message message)
@@ -509,10 +875,7 @@
         if (selectedChat is null || string.IsNullOrEmpty(currentUserId))
             return;
 
-        var ok = await JS.InvokeAsync<bool>("confirm", "Удалить это сообщение?");
-        if (!ok)
-            return;
-
+        // Удаляем сразу без подтверждения
         var result = await MessengerService.DeleteMessageAsync(selectedChat.Id, message.Id, currentUserId);
         if (!result.Success)
         {
@@ -524,6 +887,7 @@
             CancelEdit();
 
         await RefreshAfterSignalRAsync(selectedChat.Id);
+        successMessage = "Сообщение удалено";
     }
 
     private async Task SendMessage()
@@ -541,6 +905,7 @@
 
         newMessageText = string.Empty;
         await RefreshAfterSignalRAsync(selectedChat.Id);
+        await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
     }
 
     private async Task RefreshAfterSignalRAsync(int chatId)
