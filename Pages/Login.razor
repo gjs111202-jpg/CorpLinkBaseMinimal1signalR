@@ -1,5 +1,4 @@
 ﻿@page "/login"
-@using CorpLinkBaseMinimal.Auth
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.AspNetCore.Components.Authorization
@@ -7,31 +6,177 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
 
-<h3>Вход</h3>
+<div class="login-page">
+    <div class="login-box">
+        <div class="login-title">
+            <h1>CorpLink</h1>
+            <p>Войдите в свой аккаунт</p>
+        </div>
 
-<form method="post" action="/auth/login">
-    <input type="hidden" name="ReturnUrl" value="@returnUrl" />
-    <div class="form-group">
-        <label>Логин или Email</label>
-        <input class="form-control" name="UsernameOrEmail" value="@usernameOrEmail" required autocomplete="username" />
-    </div>
-    <div class="form-group">
-        <label>Пароль</label>
-        <input type="password" class="form-control" name="Password" required autocomplete="current-password" />
-    </div>
-    <button type="submit" class="btn btn-primary">Войти</button>
-    <a href="@RegisterLink" class="btn btn-link">Нет аккаунта? Зарегистрироваться</a>
-</form>
+        <form method="post" action="/auth/login">
+            <input type="hidden" name="ReturnUrl" value="@returnUrl" />
 
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
+            <div class="input-field">
+                <label>Логин или Email</label>
+                <input type="text"
+                       class="input"
+                       name="UsernameOrEmail"
+                       value="@usernameOrEmail"
+                       placeholder="Введите логин"
+                       required />
+            </div>
+
+            <div class="input-field">
+                <label>Пароль</label>
+                <input type="password"
+                       class="input"
+                       name="Password"
+                       placeholder="Введите пароль"
+                       required />
+            </div>
+
+            <button type="submit" class="login-btn">Войти</button>
+
+            <div class="register-block">
+                <a href="@RegisterLink">Нет аккаунта? Зарегистрироваться</a>
+            </div>
+        </form>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-message">@errorMessage</div>
+        }
+    </div>
+</div>
+
+<style>
+    /* Простые стили без сложных анимаций */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    .login-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #2F5FE3 0%, #1E3A8A 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: Arial, sans-serif;
+    }
+
+    .login-box {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        width: 400px;
+        max-width: 90%;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .login-title {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+        .login-title h1 {
+            color: #2F5FE3;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .login-title p {
+            color: #666;
+            font-size: 14px;
+        }
+
+    .input-field {
+        margin-bottom: 20px;
+    }
+
+        .input-field label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+    .input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+        .input:focus {
+            outline: none;
+            border-color: #2F5FE3;
+        }
+
+    .login-btn {
+        width: 100%;
+        padding: 12px;
+        background: #2F5FE3;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-bottom: 20px;
+        transition: background 0.3s;
+    }
+
+        .login-btn:hover {
+            background: #1E40AF;
+        }
+
+    .register-block {
+        text-align: center;
+    }
+
+        .register-block a {
+            color: #2F5FE3;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+            .register-block a:hover {
+                text-decoration: underline;
+            }
+
+    .error-message {
+        margin-top: 20px;
+        padding: 10px;
+        background: #FEE2E2;
+        border: 1px solid #EF4444;
+        border-radius: 10px;
+        color: #DC2626;
+        text-align: center;
+        font-size: 14px;
+    }
+
+    /* Адаптив для телефонов */
+    @@media (max-width: 600px) {
+        .login-box {
+            padding: 30px 20px;
+        }
+        
+        .login-title h1 {
+            font-size: 28px;
+        }
+    }
+</style>
 
 @code {
     private string returnUrl = "/";
     private string usernameOrEmail = "";
     private string errorMessage = "";
+
     private string RegisterLink => string.IsNullOrEmpty(returnUrl) || returnUrl == "/"
         ? "/register"
         : $"/register?returnUrl={Uri.EscapeDataString(returnUrl)}";
@@ -47,19 +192,15 @@
 
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
+        
         if (query.TryGetValue("returnUrl", out var parsedReturnUrl))
         {
-            var candidate = parsedReturnUrl.ToString();
-            returnUrl = ReturnUrlHelper.Sanitize(candidate);
+            returnUrl = parsedReturnUrl.ToString();
         }
 
         if (query.TryGetValue("error", out var err))
         {
-            errorMessage = err.ToString() switch
-            {
-                "credentials" => "Неверный логин или пароль.",
-                _ => errorMessage
-            };
+            errorMessage = err.ToString() == "credentials" ? "Неверный логин или пароль" : "";
         }
     }
 }
