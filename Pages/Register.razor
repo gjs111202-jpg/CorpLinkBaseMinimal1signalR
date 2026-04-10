@@ -18,38 +18,38 @@
 
             <div class="input-field">
                 <label>Логин</label>
-                <input type="text"
-                       class="input"
-                       name="UserName"
-                       placeholder="Придумайте логин"
-                       required
+                <input type="text" 
+                       class="input" 
+                       name="UserName" 
+                       placeholder="Придумайте логин" 
+                       required 
                        minlength="1" />
             </div>
 
             <div class="input-field">
                 <label>Отображаемое имя (необязательно)</label>
-                <input type="text"
-                       class="input"
-                       name="DisplayName"
+                <input type="text" 
+                       class="input" 
+                       name="DisplayName" 
                        placeholder="Как вас будут видеть другие" />
             </div>
 
             <div class="input-field">
                 <label>Email</label>
-                <input type="email"
-                       class="input"
-                       name="Email"
-                       placeholder="Ваш email"
+                <input type="email" 
+                       class="input" 
+                       name="Email" 
+                       placeholder="Ваш email" 
                        required />
             </div>
 
             <div class="input-field">
                 <label>Пароль</label>
-                <input type="password"
-                       class="input"
-                       name="Password"
-                       placeholder="Минимум 3 символа"
-                       required
+                <input type="password" 
+                       class="input" 
+                       name="Password" 
+                       placeholder="Минимум 3 символа" 
+                       required 
                        minlength="3" />
             </div>
 
@@ -97,28 +97,28 @@
         margin-bottom: 30px;
     }
 
-        .register-title h1 {
-            color: #2F5FE3;
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
+    .register-title h1 {
+        color: #2F5FE3;
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
 
-        .register-title p {
-            color: #666;
-            font-size: 14px;
-        }
+    .register-title p {
+        color: #666;
+        font-size: 14px;
+    }
 
     .input-field {
         margin-bottom: 20px;
     }
 
-        .input-field label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: bold;
-            font-size: 14px;
-        }
+    .input-field label {
+        display: block;
+        margin-bottom: 8px;
+        color: #333;
+        font-weight: bold;
+        font-size: 14px;
+    }
 
     .input {
         width: 100%;
@@ -129,10 +129,10 @@
         transition: all 0.3s;
     }
 
-        .input:focus {
-            outline: none;
-            border-color: #2F5FE3;
-        }
+    .input:focus {
+        outline: none;
+        border-color: #2F5FE3;
+    }
 
     .register-btn {
         width: 100%;
@@ -148,23 +148,23 @@
         transition: background 0.3s;
     }
 
-        .register-btn:hover {
-            background: #1E40AF;
-        }
+    .register-btn:hover {
+        background: #1E40AF;
+    }
 
     .login-block {
         text-align: center;
     }
 
-        .login-block a {
-            color: #2F5FE3;
-            text-decoration: none;
-            font-size: 14px;
-        }
+    .login-block a {
+        color: #2F5FE3;
+        text-decoration: none;
+        font-size: 14px;
+    }
 
-            .login-block a:hover {
-                text-decoration: underline;
-            }
+    .login-block a:hover {
+        text-decoration: underline;
+    }
 
     .error-message {
         margin-top: 20px;
@@ -219,8 +219,8 @@
 
         if (query.TryGetValue("error", out var err))
         {
-            errorMessage = err.ToString() == "create"
-                ? "Не удалось создать аккаунт. Проверьте данные (логин, email, пароль не короче 3 символов)"
+            errorMessage = err.ToString() == "create" 
+                ? "Не удалось создать аккаунт. Проверьте данные (логин, email, пароль не короче 3 символов)" 
                 : "";
         }
     }
