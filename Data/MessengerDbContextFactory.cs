@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace CorpLinkBaseMinimal.Data;
 
@@ -9,11 +10,13 @@ public class MessengerDbContextFactory : IDesignTimeDbContextFactory<MessengerDb
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json", optional: true)
             .Build();
 
         var optionsBuilder = new DbContextOptionsBuilder<MessengerDbContext>();
-        optionsBuilder.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new MessengerDbContext(optionsBuilder.Options);
     }

@@ -1,24 +1,28 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using CorpLinkBaseMinimal.Data;
+using Microsoft.AspNetCore.Identity;
 
 namespace CorpLinkBaseMinimal.Services;
 
 public class MessengerRepository : IMessengerRepository
 {
     private readonly IDbContextFactory<MessengerDbContext> _dbFactory;
+    private readonly UserManager<User> _userManager; // добавим для создания пользователей
 
-    public MessengerRepository(IDbContextFactory<MessengerDbContext> dbFactory)
+    public MessengerRepository(IDbContextFactory<MessengerDbContext> dbFactory, UserManager<User> userManager)
     {
         _dbFactory = dbFactory;
+        _userManager = userManager;
     }
 
     public async Task<List<User>> GetUsersAsync()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Users.OrderBy(x => x.Name).ToListAsync();
+        
+        return await db.Users.OrderBy(x => x.DisplayName ?? x.UserName).ToListAsync();
     }
 
-    public async Task<User?> GetUserAsync(int userId)
+    public async Task<User?> GetUserAsync(string userId)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         return await db.Users.FirstOrDefaultAsync(x => x.Id == userId);
@@ -27,19 +31,25 @@ public class MessengerRepository : IMessengerRepository
     public async Task<bool> IsUserNameExistsAsync(string name)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Users.AnyAsync(x => x.Name.ToLower() == name.ToLower());
+        
+        return await db.Users.AnyAsync(x => x.UserName!.ToLower() == name.ToLower());
     }
 
-    public async Task<User> CreateUserAsync(string name)
+    public async Task<User> CreateUserAsync(string userName, string displayName, string email, string password)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var user = new User { Name = name };
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
+        var user = new User
+        {
+            UserName = userName,
+            Email = email,
+            DisplayName = displayName
+        };
+        var result = await _userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+            throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
         return user;
     }
 
-    public async Task<List<Chat>> GetChatsForUserAsync(int userId)
+    public async Task<List<Chat>> GetChatsForUserAsync(string userId)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         return await db.Chats
@@ -51,7 +61,7 @@ public class MessengerRepository : IMessengerRepository
             .ToListAsync();
     }
 
-    public async Task<Chat?> GetChatForUserAsync(int userId, int chatId)
+    public async Task<Chat?> GetChatForUserAsync(string userId, int chatId)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         return await db.Chats
@@ -61,7 +71,7 @@ public class MessengerRepository : IMessengerRepository
             .FirstOrDefaultAsync(c => c.Id == chatId && c.Participants.Any(p => p.UserId == userId));
     }
 
-    public async Task<bool> IsChatParticipantAsync(int chatId, int userId)
+    public async Task<bool> IsChatParticipantAsync(int chatId, string userId)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         return await db.Chats.AnyAsync(c => c.Id == chatId && c.Participants.Any(p => p.UserId == userId));
@@ -105,5 +115,36 @@ public class MessengerRepository : IMessengerRepository
         await using var db = await _dbFactory.CreateDbContextAsync();
         await db.Entry(message).Reference(m => m.Sender).LoadAsync();
         return message;
+    }
+
+    public async Task<Message?> GetMessageOwnedByUserAsync(int chatId, int messageId, string senderId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Messages
+            .AsTracking()
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ChatId == chatId && m.SenderId == senderId);
+    }
+
+    public async Task<bool> UpdateMessageTextAsync(int messageId, string newText, DateTime editedAtUtc)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (msg is null)
+            return false;
+        msg.Text = newText;
+        msg.EditedAt = editedAtUtc;
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteMessageAsync(int messageId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (msg is null)
+            return false;
+        db.Messages.Remove(msg);
+        await db.SaveChangesAsync();
+        return true;
     }
 }
