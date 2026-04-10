@@ -1,5 +1,4 @@
 ﻿@page "/register"
-@using CorpLinkBaseMinimal.Auth
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.AspNetCore.Components.Authorization
@@ -7,38 +6,196 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
 
-<h3>Регистрация</h3>
+<div class="register-page">
+    <div class="register-box">
+        <div class="register-title">
+            <h1>CorpLink</h1>
+            <p>Создайте новый аккаунт</p>
+        </div>
 
-<form method="post" action="/auth/register">
-    <input type="hidden" name="ReturnUrl" value="@returnUrl" />
-    <div class="form-group">
-        <label>Логин</label>
-        <input class="form-control" name="UserName" required minlength="1" autocomplete="username" />
-    </div>
-    <div class="form-group">
-        <label>Отображаемое имя (необязательно)</label>
-        <input class="form-control" name="DisplayName" autocomplete="nickname" />
-    </div>
-    <div class="form-group">
-        <label>Email</label>
-        <input type="email" class="form-control" name="Email" required autocomplete="email" />
-    </div>
-    <div class="form-group">
-        <label>Пароль</label>
-        <input type="password" class="form-control" name="Password" required minlength="3" autocomplete="new-password" />
-    </div>
-    <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
-    <a href="@LoginLink" class="btn btn-link">Уже есть аккаунт? Войти</a>
-</form>
+        <form method="post" action="/auth/register">
+            <input type="hidden" name="ReturnUrl" value="@returnUrl" />
 
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
+            <div class="input-field">
+                <label>Логин</label>
+                <input type="text"
+                       class="input"
+                       name="UserName"
+                       placeholder="Придумайте логин"
+                       required
+                       minlength="1" />
+            </div>
+
+            <div class="input-field">
+                <label>Отображаемое имя (необязательно)</label>
+                <input type="text"
+                       class="input"
+                       name="DisplayName"
+                       placeholder="Как вас будут видеть другие" />
+            </div>
+
+            <div class="input-field">
+                <label>Email</label>
+                <input type="email"
+                       class="input"
+                       name="Email"
+                       placeholder="Ваш email"
+                       required />
+            </div>
+
+            <div class="input-field">
+                <label>Пароль</label>
+                <input type="password"
+                       class="input"
+                       name="Password"
+                       placeholder="Минимум 3 символа"
+                       required
+                       minlength="3" />
+            </div>
+
+            <button type="submit" class="register-btn">Зарегистрироваться</button>
+
+            <div class="login-block">
+                <a href="@LoginLink">Уже есть аккаунт? Войти</a>
+            </div>
+        </form>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-message">@errorMessage</div>
+        }
+    </div>
+</div>
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    .register-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #2F5FE3 0%, #1E3A8A 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: Arial, sans-serif;
+    }
+
+    .register-box {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        width: 450px;
+        max-width: 90%;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .register-title {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+        .register-title h1 {
+            color: #2F5FE3;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .register-title p {
+            color: #666;
+            font-size: 14px;
+        }
+
+    .input-field {
+        margin-bottom: 20px;
+    }
+
+        .input-field label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+    .input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+        .input:focus {
+            outline: none;
+            border-color: #2F5FE3;
+        }
+
+    .register-btn {
+        width: 100%;
+        padding: 12px;
+        background: #2F5FE3;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-bottom: 20px;
+        transition: background 0.3s;
+    }
+
+        .register-btn:hover {
+            background: #1E40AF;
+        }
+
+    .login-block {
+        text-align: center;
+    }
+
+        .login-block a {
+            color: #2F5FE3;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+            .login-block a:hover {
+                text-decoration: underline;
+            }
+
+    .error-message {
+        margin-top: 20px;
+        padding: 10px;
+        background: #FEE2E2;
+        border: 1px solid #EF4444;
+        border-radius: 10px;
+        color: #DC2626;
+        text-align: center;
+        font-size: 14px;
+    }
+
+    @@media (max-width: 600px) {
+        .register-box {
+            padding: 30px 20px;
+        }
+        
+        .register-title h1 {
+            font-size: 28px;
+        }
+        
+        .input {
+            padding: 10px;
+        }
+    }
+</style>
 
 @code {
     private string returnUrl = "/";
     private string errorMessage = "";
+
     private string LoginLink => string.IsNullOrEmpty(returnUrl) || returnUrl == "/"
         ? "/login"
         : $"/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
@@ -54,19 +211,17 @@
 
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
+        
         if (query.TryGetValue("returnUrl", out var parsedReturnUrl))
         {
-            var candidate = parsedReturnUrl.ToString();
-            returnUrl = ReturnUrlHelper.Sanitize(candidate);
+            returnUrl = parsedReturnUrl.ToString();
         }
 
         if (query.TryGetValue("error", out var err))
         {
-            errorMessage = err.ToString() switch
-            {
-                "create" => "Не удалось создать аккаунт. Проверьте данные (логин, email, пароль не короче 3 символов).",
-                _ => errorMessage
-            };
+            errorMessage = err.ToString() == "create"
+                ? "Не удалось создать аккаунт. Проверьте данные (логин, email, пароль не короче 3 символов)"
+                : "";
         }
     }
 }
