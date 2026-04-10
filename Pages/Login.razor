@@ -186,7 +186,7 @@
         var authState = await AuthProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated == true)
         {
-            Navigation.NavigateTo("/register", forceLoad: true);
+            Navigation.NavigateTo("/logout", forceLoad: true);
             return;
         }
 
