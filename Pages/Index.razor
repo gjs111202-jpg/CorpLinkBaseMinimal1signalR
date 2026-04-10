@@ -10,6 +10,7 @@
 @inject MessengerService MessengerService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
+@inject IJSRuntime JS
 
 <PageTitle>CorpLink — Чат</PageTitle>
 
@@ -86,7 +87,29 @@
                         <div class="message-wrap @(mine ? "mine" : "other")">
                             <div class="message-bubble">
                                 <div class="message-author">@(message.Sender?.DisplayName ?? message.Sender?.UserName)</div>
-                                <div>@message.Text</div>
+                                @if (mine && editingMessageId == message.Id)
+                                {
+                                    <textarea class="input edit-area" @bind="editMessageText" @bind:event="oninput" rows="3"></textarea>
+                                    <div class="message-actions">
+                                        <button type="button" class="btn btn-sm" @onclick="SaveEditAsync">Сохранить</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" @onclick="CancelEdit">Отмена</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="message-body">@message.Text</div>
+                                    @if (message.EditedAt.HasValue)
+                                    {
+                                        <div class="message-edited">изменено</div>
+                                    }
+                                    @if (mine)
+                                    {
+                                        <div class="message-actions">
+                                            <button type="button" class="btn-link" @onclick="() => StartEdit(message)">Изменить</button>
+                                            <button type="button" class="btn-link danger" @onclick="() => DeleteMessageAsync(message)">Удалить</button>
+                                        </div>
+                                    }
+                                }
                                 <div class="message-time">@message.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
                             </div>
                         </div>
@@ -246,6 +269,51 @@
         font-weight: 700;
         margin-bottom: 6px;
     }
+    .message-body {
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .message-edited {
+        margin-top: 4px;
+        font-size: 11px;
+        color: #98a2b3;
+        font-style: italic;
+    }
+    .message-actions {
+        margin-top: 8px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .btn-link {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #2f5fe3;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+    .btn-link.danger {
+        color: #b42318;
+    }
+    .btn.btn-sm {
+        padding: 8px 12px;
+        font-size: 13px;
+        border-radius: 10px;
+    }
+    .btn.btn-secondary {
+        background: #e4e8f0;
+        color: #344054;
+    }
+    .edit-area {
+        margin-top: 6px;
+        resize: vertical;
+        min-height: 64px;
+        font-family: inherit;
+    }
     .message-time {
         margin-top: 8px;
         font-size: 12px;
@@ -300,6 +368,8 @@
     private HubConnection? hubConnection;
     private int? joinedChatId;
     private string currentUserId = string.Empty;
+    private int? editingMessageId;
+    private string editMessageText = string.Empty;
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthProvider.GetAuthenticationStateAsync();
@@ -382,11 +452,64 @@
 
         selectedChat = await MessengerService.GetChatForUserAsync(currentUserId, chatId);
         joinedChatId = selectedChat?.Id;
+        CancelEdit();
 
         if (hubConnection is not null && joinedChatId.HasValue)
             await hubConnection.SendAsync("JoinChat", $"chat-{joinedChatId.Value}");
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void StartEdit(Message message)
+    {
+        editingMessageId = message.Id;
+        editMessageText = message.Text;
+    }
+
+    private void CancelEdit()
+    {
+        editingMessageId = null;
+        editMessageText = string.Empty;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        ClearMessages();
+        if (selectedChat is null || string.IsNullOrEmpty(currentUserId) || !editingMessageId.HasValue)
+            return;
+
+        var result = await MessengerService.UpdateMessageAsync(selectedChat.Id, editingMessageId.Value, currentUserId, editMessageText);
+        if (!result.Success)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        CancelEdit();
+        await RefreshAfterSignalRAsync(selectedChat.Id);
+    }
+
+    private async Task DeleteMessageAsync(Message message)
+    {
+        ClearMessages();
+        if (selectedChat is null || string.IsNullOrEmpty(currentUserId))
+            return;
+
+        var ok = await JS.InvokeAsync<bool>("confirm", "Удалить это сообщение?");
+        if (!ok)
+            return;
+
+        var result = await MessengerService.DeleteMessageAsync(selectedChat.Id, message.Id, currentUserId);
+        if (!result.Success)
+        {
+            errorMessage = result.Error;
+            return;
+        }
+
+        if (editingMessageId == message.Id)
+            CancelEdit();
+
+        await RefreshAfterSignalRAsync(selectedChat.Id);
     }
 
     private async Task SendMessage()
