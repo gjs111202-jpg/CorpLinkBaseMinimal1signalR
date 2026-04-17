@@ -1,6 +1,8 @@
 @page "/"
+@page "/{ChatId?}"
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using CorpLinkBaseMinimal.Data
 @using CorpLinkBaseMinimal.Services
@@ -22,7 +24,7 @@
         
         <div class="block">
             <div class="block-title">👤 Мой профиль</div>
-            <div class="current-user">
+            <div class="current-user" @onclick="GoToMyProfile" style="cursor: pointer;">
                 <div class="user-avatar">
                     @{
                         var displayName = users.FirstOrDefault(u => u.Id == currentUserId)?.DisplayName ?? currentUserId;
@@ -40,15 +42,41 @@
 
         <div class="block">
             <div class="block-title">➕ Новый диалог</div>
-            <select class="input" @bind="otherUserId">
-                <option value="">Выберите собеседника</option>
-                @foreach (var user in users.Where(u => u.Id != currentUserId))
-                {
-                    <option value="@user.Id">@(user.DisplayName ?? user.UserName)</option>
-                }
-            </select>
-            <button class="btn full" @onclick="CreateChat">✨ Создать чат</button>
+            <input type="text"
+                   class="input"
+                   @bind="searchQuery"
+                   @bind:event="oninput"
+                   placeholder="Логин или email собеседника"
+                   @onkeydown="HandleSearchKeyDown" />
+            <button class="btn full" @onclick="CreateChatBySearch" disabled="@string.IsNullOrWhiteSpace(searchQuery)">
+                🔍 Найти и создать чат
+            </button>
         </div>
+
+<div class="block">
+    <div class="block-title">⭐ Избранное</div>
+    <div class="chats-container">
+        @if (!favorites.Any())
+        {
+            <div class="empty">Нет избранных</div>
+        }
+        else
+        {
+            @foreach (var fav in favorites)
+{
+    <div class="chat-item">
+        <div class="chat-avatar" @onclick="() => OpenProfile(fav.Id)">@GetAvatarLetter(fav)</div>
+        <div class="chat-content" @onclick="() => OpenProfile(fav.Id)">
+            <div class="chat-title">@(fav.DisplayName ?? fav.UserName)</div>
+        </div>
+        <div class="favorite-remove">
+            <button class="icon-btn remove-fav-btn" @onclick="() => RemoveFromFavorites(fav.Id)" title="Удалить из избранного">❌</button>
+        </div>
+    </div>
+}
+        }
+    </div>
+</div>
 
         <div class="block">
             <div class="block-title">💬 Мои чаты</div>
@@ -106,7 +134,7 @@
         else
         {
             <div class="chat-header">
-                <div class="chat-header-info">
+                <div class="chat-header-info" @onclick="GoToChatPartnerProfile" style="cursor: pointer;">
                     <div class="chat-header-avatar">
                         @(selectedChatTitle.Length >= 2 ? selectedChatTitle[..2].ToUpper() : selectedChatTitle[..1].ToUpper())
                     </div>
@@ -116,6 +144,9 @@
                             👥 @string.Join(", ", selectedChat.Participants.Select(p => p.User?.DisplayName ?? p.User?.UserName))
                         </div>
                     </div>
+                    <div class="chat-header-actions">
+    <button class="icon-btn delete-chat-btn" @onclick="DeleteCurrentChat" title="Удалить чат">🗑️</button>
+</div>
                 </div>
             </div>
             
@@ -710,13 +741,43 @@
             padding: 12px;
         }
     }
+
+    .chat-header-actions {
+    margin-left: auto;
+}
+.delete-chat-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #ef4444;
+}
+.delete-chat-btn:hover {
+    opacity: 0.8;
+}
+.favorite-remove {
+    flex-shrink: 0;
+}
+.remove-fav-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0.6;
+}
+.remove-fav-btn:hover {
+    opacity: 1;
+}
+
 </style>
 
 @code {
+    [Parameter] public string? ChatId { get; set; }
     private List<User> users = new();
     private List<Chat> chats = new();
+    private List<User> favorites = new();
     private Chat? selectedChat;
-    private string otherUserId = string.Empty;
+    private string searchQuery = string.Empty;
     private string newMessageText = string.Empty;
     private string errorMessage = string.Empty;
     private string successMessage = string.Empty;
@@ -732,17 +793,31 @@
                                         selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.UserName ?? 
                                         selectedChat?.Title ?? "Чат";
 
-    protected override async Task OnInitializedAsync()
+protected override async Task OnInitializedAsync()
+{
+    var authState = await AuthProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+    currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+    if (!string.IsNullOrEmpty(currentUserId))
     {
-        var authState = await AuthProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        if (!string.IsNullOrEmpty(currentUserId))
+        await LoadUsersAndChatsAsync();
+        await InitializeSignalRAsync();
+
+        if (!string.IsNullOrEmpty(ChatId) && int.TryParse(ChatId, out int chatId))
         {
-            await LoadUsersAndChatsAsync();
-            await InitializeSignalRAsync();
+            var chat = chats.FirstOrDefault(c => c.Id == chatId);
+            if (chat != null)
+                await SelectChat(chatId);
+            else
+            {
+                // Чата ещё нет в списке (только что создан) – перезагрузим
+                await LoadUsersAndChatsAsync();
+                if (chats.Any(c => c.Id == chatId))
+                    await SelectChat(chatId);
+            }
         }
     }
+}
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -781,12 +856,21 @@
         }
     }
 
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(searchQuery))
+        {
+            await CreateChatBySearch();
+        }
+    }
+
     private async Task LoadUsersAndChatsAsync()
     {
         users = await MessengerService.GetUsersAsync();
         if (!string.IsNullOrEmpty(currentUserId))
         {
             chats = await MessengerService.GetChatsForUserAsync(currentUserId);
+            favorites = await MessengerService.GetFavoritesAsync(currentUserId);
             if (selectedChat is not null)
                 selectedChat = chats.FirstOrDefault(x => x.Id == selectedChat.Id);
         }
@@ -798,23 +882,23 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task CreateChat()
+    private async Task CreateChatBySearch()
     {
         ClearMessages();
-        if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrEmpty(otherUserId))
+        if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrWhiteSpace(searchQuery))
         {
-            errorMessage = "Выберите собеседника";
+            errorMessage = "Введите логин или email";
             return;
         }
 
-        var result = await MessengerService.CreateDirectChatAsync(currentUserId, otherUserId);
+        var result = await MessengerService.CreateDirectChatBySearchAsync(currentUserId, searchQuery);
         if (!result.Success)
         {
             errorMessage = result.Error;
             return;
         }
 
-        otherUserId = string.Empty;
+        searchQuery = string.Empty;
         successMessage = "Чат создан";
         await LoadUsersAndChatsAsync();
 
@@ -840,6 +924,18 @@
         await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
     }
 
+    private void GoToMyProfile()
+    {
+        Navigation.NavigateTo("/profile");
+    }
+
+    private void GoToChatPartnerProfile()
+    {
+        var otherUser = selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User;
+        if (otherUser != null)
+            Navigation.NavigateTo($"/profile/{otherUser.Id}");
+    }
+
     private void StartEdit(Message message)
     {
         editingMessageId = message.Id;
@@ -851,6 +947,17 @@
         editingMessageId = null;
         editMessageText = string.Empty;
     }
+
+    private void OpenProfile(string userId)
+{
+    Navigation.NavigateTo($"/profile/{userId}");
+}
+
+private string GetAvatarLetter(User user)
+{
+    var name = user.DisplayName ?? user.UserName;
+    return string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpper();
+}
 
     private async Task SaveEditAsync()
     {
@@ -875,7 +982,6 @@
         if (selectedChat is null || string.IsNullOrEmpty(currentUserId))
             return;
 
-        // Удаляем сразу без подтверждения
         var result = await MessengerService.DeleteMessageAsync(selectedChat.Id, message.Id, currentUserId);
         if (!result.Success)
         {
@@ -913,6 +1019,7 @@
         if (string.IsNullOrEmpty(currentUserId)) return;
 
         chats = await MessengerService.GetChatsForUserAsync(currentUserId);
+        favorites = await MessengerService.GetFavoritesAsync(currentUserId);
         if (selectedChat is not null && selectedChat.Id == chatId)
             selectedChat = await MessengerService.GetChatForUserAsync(currentUserId, chatId);
 
@@ -937,4 +1044,28 @@
             await hubConnection.DisposeAsync();
         }
     }
+
+    private async Task DeleteCurrentChat()
+{
+    if (selectedChat == null) return;
+    if (!await JS.InvokeAsync<bool>("confirm", "Удалить чат без возможности восстановления?")) return;
+
+    var result = await MessengerService.DeleteChatAsync(selectedChat.Id, currentUserId);
+    if (!result.Success)
+    {
+        errorMessage = result.Error;
+        return;
+    }
+
+    selectedChat = null;
+    await LoadUsersAndChatsAsync();
+    successMessage = "Чат удалён";
+}
+
+private async Task RemoveFromFavorites(string favoriteUserId)
+{
+    await MessengerService.RemoveFavoriteAsync(currentUserId, favoriteUserId);
+    await LoadUsersAndChatsAsync(); // обновить список избранного
+    successMessage = "Удалён из избранного";
+}
 }

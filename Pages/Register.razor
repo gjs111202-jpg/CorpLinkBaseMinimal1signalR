@@ -18,38 +18,38 @@
 
             <div class="input-field">
                 <label>Логин</label>
-                <input type="text" 
-                       class="input" 
-                       name="UserName" 
-                       placeholder="Придумайте логин" 
-                       required 
+                <input type="text"
+                       class="input @(errorType == "username_empty" || errorType == "username_taken" ? "input-error" : "")"
+                       name="UserName"
+                       placeholder="Придумайте логин"
+                       required
                        minlength="1" />
             </div>
 
             <div class="input-field">
                 <label>Отображаемое имя (необязательно)</label>
-                <input type="text" 
-                       class="input" 
-                       name="DisplayName" 
+                <input type="text"
+                       class="input"
+                       name="DisplayName"
                        placeholder="Как вас будут видеть другие" />
             </div>
 
             <div class="input-field">
                 <label>Email</label>
-                <input type="email" 
-                       class="input" 
-                       name="Email" 
-                       placeholder="Ваш email" 
+                <input type="email"
+                       class="input @(errorType == "email_empty" || errorType == "email_invalid" || errorType == "email_taken" ? "input-error" : "")"
+                       name="Email"
+                       placeholder="Ваш email"
                        required />
             </div>
 
             <div class="input-field">
                 <label>Пароль</label>
-                <input type="password" 
-                       class="input" 
-                       name="Password" 
-                       placeholder="Минимум 3 символа" 
-                       required 
+                <input type="password"
+                       class="input @(errorType == "password_empty" || errorType == "password_too_weak" ? "input-error" : "")"
+                       name="Password"
+                       placeholder="Минимум 3 символа"
+                       required
                        minlength="3" />
             </div>
 
@@ -97,28 +97,28 @@
         margin-bottom: 30px;
     }
 
-    .register-title h1 {
-        color: #2F5FE3;
-        font-size: 32px;
-        margin-bottom: 10px;
-    }
+        .register-title h1 {
+            color: #2F5FE3;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
 
-    .register-title p {
-        color: #666;
-        font-size: 14px;
-    }
+        .register-title p {
+            color: #666;
+            font-size: 14px;
+        }
 
     .input-field {
         margin-bottom: 20px;
     }
 
-    .input-field label {
-        display: block;
-        margin-bottom: 8px;
-        color: #333;
-        font-weight: bold;
-        font-size: 14px;
-    }
+        .input-field label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+            font-size: 14px;
+        }
 
     .input {
         width: 100%;
@@ -129,9 +129,13 @@
         transition: all 0.3s;
     }
 
-    .input:focus {
-        outline: none;
-        border-color: #2F5FE3;
+        .input:focus {
+            outline: none;
+            border-color: #2F5FE3;
+        }
+
+    .input-error {
+        border-color: #EF4444 !important;
     }
 
     .register-btn {
@@ -148,23 +152,23 @@
         transition: background 0.3s;
     }
 
-    .register-btn:hover {
-        background: #1E40AF;
-    }
+        .register-btn:hover {
+            background: #1E40AF;
+        }
 
     .login-block {
         text-align: center;
     }
 
-    .login-block a {
-        color: #2F5FE3;
-        text-decoration: none;
-        font-size: 14px;
-    }
+        .login-block a {
+            color: #2F5FE3;
+            text-decoration: none;
+            font-size: 14px;
+        }
 
-    .login-block a:hover {
-        text-decoration: underline;
-    }
+            .login-block a:hover {
+                text-decoration: underline;
+            }
 
     .error-message {
         margin-top: 20px;
@@ -195,6 +199,7 @@
 @code {
     private string returnUrl = "/";
     private string errorMessage = "";
+    private string errorType = "";
 
     private string LoginLink => string.IsNullOrEmpty(returnUrl) || returnUrl == "/"
         ? "/login"
@@ -205,7 +210,7 @@
         var authState = await AuthProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated == true)
         {
-            Navigation.NavigateTo("/register", forceLoad: true);
+            Navigation.NavigateTo("/", forceLoad: true);
             return;
         }
 
@@ -219,9 +224,19 @@
 
         if (query.TryGetValue("error", out var err))
         {
-            errorMessage = err.ToString() == "create" 
-                ? "Не удалось создать аккаунт. Проверьте данные (логин, email, пароль не короче 3 символов)" 
-                : "";
+            errorType = err.ToString();
+            errorMessage = errorType switch
+            {
+                "username_empty" => "Имя пользователя обязательно.",
+                "username_taken" => "Пользователь с таким именем уже существует.",
+                "email_empty" => "Email обязателен.",
+                "email_invalid" => "Введите корректный email.",
+                "email_taken" => "Пользователь с таким email уже зарегистрирован.",
+                "password_empty" => "Пароль обязателен.",
+                "password_too_weak" => "Пароль слишком короткий (минимум 3 символа).",
+                "unknown" => "Ошибка регистрации. Попробуйте позже.",
+                _ => ""
+            };
         }
     }
 }

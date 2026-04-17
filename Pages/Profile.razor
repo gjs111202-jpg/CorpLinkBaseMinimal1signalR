@@ -1,0 +1,305 @@
+﻿@page "/profile/{UserId?}"
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using CorpLinkBaseMinimal.Data
+@using CorpLinkBaseMinimal.Services
+@attribute [Authorize]
+@inject MessengerService Messenger
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthProvider
+
+<div class="profile-container">
+    @if (profileUser is null)
+    {
+        <div class="loading">Загрузка...</div>
+    }
+    else
+    {
+        <div class="profile-card">
+            <div class="profile-avatar">
+                @if (!string.IsNullOrEmpty(profileUser.AvatarUrl))
+                {
+                    <img src="@profileUser.AvatarUrl" alt="Avatar" class="avatar-img" />
+                }
+                else
+                {
+                    <div class="avatar-placeholder">
+                        @((profileUser.DisplayName ?? profileUser.UserName)?[..1].ToUpper())
+                    </div>
+                }
+            </div>
+            <div class="profile-info">
+                <h2>@(profileUser.DisplayName ?? profileUser.UserName)</h2>
+                <div class="username">@@@profileUser.UserName</div>
+                @if (!string.IsNullOrEmpty(profileUser.Bio))
+                {
+                    <div class="bio">@profileUser.Bio</div>
+                }
+                <div class="meta">
+                    <span>📅 Регистрация: @profileUser.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                </div>
+            </div>
+        </div>
+
+        @if (isOwnProfile)
+        {
+            <div class="edit-section">
+                <h3>Редактировать профиль</h3>
+                <div class="form-group">
+                    <label>Отображаемое имя</label>
+                    <input type="text" @bind="editDisplayName" class="input" />
+                </div>
+                <div class="form-group">
+                    <label>О себе</label>
+                    <textarea @bind="editBio" class="input" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Статус</label>
+                    <input type="text" @bind="editStatus" class="input" placeholder="Например: онлайн, не беспокоить" />
+                </div>
+                <button class="btn" @onclick="SaveProfile">Сохранить</button>
+                @if (!string.IsNullOrEmpty(saveMessage))
+                {
+                    <div class="success-message">@saveMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="error-message">@errorMessage</div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="actions">
+                @if (isFavorite)
+                {
+                    <button class="btn btn-secondary" @onclick="RemoveFromFavorites">❤️ В избранном</button>
+                }
+                else
+                {
+                    <button class="btn" @onclick="AddToFavorites">🤍 Добавить в избранное</button>
+                }
+                <button class="btn" @onclick="StartChat">💬 Написать сообщение</button>
+            </div>
+        }
+    }
+</div>
+
+<div class="profile-nav">
+    <button class="btn-back" @onclick="GoToHome">← На главную</button>
+</div>
+
+<style>
+    .profile-container {
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .profile-card {
+        display: flex;
+        gap: 24px;
+        background: white;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 32px;
+    }
+    .profile-avatar .avatar-placeholder {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #2f5fe3, #1e40af);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        font-weight: bold;
+        color: white;
+    }
+    .avatar-img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .profile-info h2 {
+        margin: 0 0 8px 0;
+    }
+    .username {
+        color: #666;
+        margin-bottom: 12px;
+    }
+    .bio {
+        margin: 12px 0;
+        font-style: italic;
+    }
+    .meta {
+        font-size: 12px;
+        color: #888;
+    }
+    .edit-section {
+        background: #f8f9fa;
+        border-radius: 20px;
+        padding: 24px;
+    }
+    .form-group {
+        margin-bottom: 16px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+    }
+    .input {
+        width: 100%;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+    }
+    .btn {
+        padding: 10px 20px;
+        background: #2f5fe3;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        margin-right: 12px;
+        font-size: 14px;
+    }
+    .btn-secondary {
+        background: #6c757d;
+    }
+    .actions {
+        margin-top: 20px;
+    }
+    .error-message {
+        color: #dc2626;
+        margin-top: 20px;
+    }
+    .success-message {
+        color: #22c55e;
+        margin-top: 10px;
+    }
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+    .profile-nav {
+    margin-bottom: 20px;
+}
+.btn-back {
+    background: none;
+    border: none;
+    color: #2f5fe3;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-back:hover {
+    text-decoration: underline;
+}
+</style>
+
+@code {
+    [Parameter] public string? UserId { get; set; }
+    private User? profileUser;
+    private bool isOwnProfile;
+    private bool isFavorite;
+    private string? errorMessage;
+    private string? saveMessage;
+    private string editDisplayName = "";
+    private string editBio = "";
+    private string editStatus = "";
+    private string currentUserId = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        var targetId = string.IsNullOrEmpty(UserId) ? currentUserId : UserId;
+        isOwnProfile = targetId == currentUserId;
+
+        profileUser = await Messenger.GetUserWithProfileAsync(targetId);
+        if (profileUser == null)
+        {
+            errorMessage = "Пользователь не найден";
+            return;
+        }
+
+        if (!isOwnProfile)
+        {
+            isFavorite = await Messenger.IsFavoriteAsync(currentUserId, targetId);
+        }
+        else
+        {
+            editDisplayName = profileUser.DisplayName ?? "";
+            editBio = profileUser.Bio ?? "";
+            editStatus = profileUser.Status ?? "";
+        }
+    }
+
+    private async Task AddToFavorites()
+    {
+        if (profileUser == null) return;
+        await Messenger.AddFavoriteAsync(currentUserId, profileUser.Id);
+        isFavorite = true;
+        saveMessage = "Пользователь добавлен в избранное";
+    }
+
+    private async Task RemoveFromFavorites()
+    {
+        if (profileUser == null) return;
+        await Messenger.RemoveFavoriteAsync(currentUserId, profileUser.Id);
+        isFavorite = false;
+        saveMessage = "Пользователь удалён из избранного";
+    }
+
+    private async Task SaveProfile()
+    {
+        errorMessage = null;
+        saveMessage = null;
+        var success = await Messenger.UpdateUserProfileAsync(currentUserId, editDisplayName, editBio, editStatus);
+        if (success)
+        {
+            saveMessage = "Профиль обновлён";
+            profileUser = await Messenger.GetUserWithProfileAsync(currentUserId);
+            editDisplayName = profileUser?.DisplayName ?? "";
+            editBio = profileUser?.Bio ?? "";
+            editStatus = profileUser?.Status ?? "";
+        }
+        else
+        {
+            errorMessage = "Ошибка сохранения";
+        }
+    }
+
+private async Task StartChat()
+{
+    if (profileUser == null) return;
+
+    var result = await Messenger.CreateDirectChatBySearchAsync(currentUserId, profileUser.UserName ?? profileUser.Email);
+    if (!result.Success)
+    {
+        errorMessage = result.Error;
+        return;
+    }
+
+    Navigation.NavigateTo($"/?chatId={result.Chat!.Id}");
+}
+private void GoToHome()
+{
+    Navigation.NavigateTo("/");
+}
+}
