@@ -7,6 +7,8 @@ public interface IMessengerRepository
     Task<List<User>> GetUsersAsync(CancellationToken cancellationToken = default);
     Task<User?> GetUserAsync(string userId, CancellationToken cancellationToken = default);
     Task<bool> IsUserNameExistsAsync(string name, CancellationToken cancellationToken = default);
+    Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default);
+    Task<User?> FindUserByLoginOrEmailAsync(string search, CancellationToken cancellationToken = default);
     Task<User> CreateUserAsync(string userName, string displayName, string email, string password, CancellationToken cancellationToken = default);
 
     Task<List<Chat>> GetChatsForUserAsync(string userId, CancellationToken cancellationToken = default);

@@ -40,14 +40,15 @@
 
         <div class="block">
             <div class="block-title">➕ Новый диалог</div>
-            <select class="input" @bind="otherUserId">
-                <option value="">Выберите собеседника</option>
-                @foreach (var user in users.Where(u => u.Id != currentUserId))
-                {
-                    <option value="@user.Id">@(user.DisplayName ?? user.UserName)</option>
-                }
-            </select>
-            <button class="btn full" @onclick="CreateChat">✨ Создать чат</button>
+            <input type="text"
+                   class="input"
+                   @bind="searchQuery"
+                   @bind:event="oninput"
+                   placeholder="Логин или email собеседника"
+                   @onkeydown="HandleSearchKeyDown" />
+            <button class="btn full" @onclick="CreateChatBySearch" disabled="@string.IsNullOrWhiteSpace(searchQuery)">
+                🔍 Найти и создать чат
+            </button>
         </div>
 
         <div class="block">
@@ -716,7 +717,7 @@
     private List<User> users = new();
     private List<Chat> chats = new();
     private Chat? selectedChat;
-    private string otherUserId = string.Empty;
+    private string searchQuery = string.Empty;
     private string newMessageText = string.Empty;
     private string errorMessage = string.Empty;
     private string successMessage = string.Empty;
@@ -781,6 +782,14 @@
         }
     }
 
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(searchQuery))
+        {
+            await CreateChatBySearch();
+        }
+    }
+
     private async Task LoadUsersAndChatsAsync()
     {
         users = await MessengerService.GetUsersAsync();
@@ -798,23 +807,23 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task CreateChat()
+    private async Task CreateChatBySearch()
     {
         ClearMessages();
-        if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrEmpty(otherUserId))
+        if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrWhiteSpace(searchQuery))
         {
-            errorMessage = "Выберите собеседника";
+            errorMessage = "Введите логин или email";
             return;
         }
 
-        var result = await MessengerService.CreateDirectChatAsync(currentUserId, otherUserId);
+        var result = await MessengerService.CreateDirectChatBySearchAsync(currentUserId, searchQuery);
         if (!result.Success)
         {
             errorMessage = result.Error;
             return;
         }
 
-        otherUserId = string.Empty;
+        searchQuery = string.Empty;
         successMessage = "Чат создан";
         await LoadUsersAndChatsAsync();
 
@@ -875,7 +884,6 @@
         if (selectedChat is null || string.IsNullOrEmpty(currentUserId))
             return;
 
-        // Удаляем сразу без подтверждения
         var result = await MessengerService.DeleteMessageAsync(selectedChat.Id, message.Id, currentUserId);
         if (!result.Success)
         {

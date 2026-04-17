@@ -26,8 +26,6 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    // На localhost cookie не различает порты: одно имя = одна сессия на всех портах.
-    // Если Auth:CookieName не задан, имя строится из порта первого URL (разные процессы на 51671 и 51672 = разные cookie).
     options.Cookie.Name = ResolveAuthCookieName(builder.Configuration);
     options.LoginPath = "/login";
     options.LogoutPath = "/logout";
@@ -78,7 +76,7 @@ app.MapPost("/auth/login", async (HttpContext context, SignInManager<User> signI
     return Results.Redirect(returnUrl);
 });
 
-app.MapPost("/auth/register", async (HttpContext context, UserManager<User> userManager, SignInManager<User> signInManager) =>
+app.MapPost("/auth/register", async (HttpContext context, SignInManager<User> signInManager) =>
 {
     var form = await context.Request.ReadFormAsync();
     var userName = form["UserName"].ToString();
@@ -87,18 +85,26 @@ app.MapPost("/auth/register", async (HttpContext context, UserManager<User> user
     var password = form["Password"].ToString();
     var returnUrl = ReturnUrlHelper.Sanitize(form["ReturnUrl"].ToString());
 
-    var user = new User
+    var messengerService = context.RequestServices.GetRequiredService<MessengerService>();
+    var result = await messengerService.CreateUserAsync(userName, displayName, email, password);
+
+    if (!result.Success)
     {
-        UserName = userName,
-        Email = email,
-        DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName
-    };
+        string errorParam = result.ErrorCode switch
+        {
+            RegistrationError.UsernameEmpty => "username_empty",
+            RegistrationError.UsernameTaken => "username_taken",
+            RegistrationError.EmailEmpty => "email_empty",
+            RegistrationError.EmailInvalid => "email_invalid",
+            RegistrationError.EmailTaken => "email_taken",
+            RegistrationError.PasswordEmpty => "password_empty",
+            RegistrationError.PasswordTooWeak => "password_too_weak",
+            _ => "unknown"
+        };
+        return Results.Redirect($"/register?returnUrl={Uri.EscapeDataString(returnUrl)}&error={errorParam}");
+    }
 
-    var createResult = await userManager.CreateAsync(user, password);
-    if (!createResult.Succeeded)
-        return Results.Redirect($"/register?returnUrl={Uri.EscapeDataString(returnUrl)}&error=create");
-
-    await signInManager.SignInAsync(user, isPersistent: false);
+    await signInManager.SignInAsync(result.User, isPersistent: false);
     return Results.Redirect(returnUrl);
 });
 

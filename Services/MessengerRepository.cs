@@ -33,6 +33,21 @@ public class MessengerRepository : IMessengerRepository
         return await db.Users.AnyAsync(x => x.UserName!.ToLower() == name.ToLower(), cancellationToken);
     }
 
+    public async Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Users.AnyAsync(x => x.Email!.ToLower() == email.ToLower(), cancellationToken);
+    }
+
+    public async Task<User?> FindUserByLoginOrEmailAsync(string search, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Users
+            .FirstOrDefaultAsync(u => u.UserName!.ToLower() == search.ToLower()
+                                   || u.Email!.ToLower() == search.ToLower(),
+                                   cancellationToken);
+    }
+
     public async Task<User> CreateUserAsync(string userName, string displayName, string email, string password, CancellationToken cancellationToken = default)
     {
         var user = new User
@@ -41,7 +56,6 @@ public class MessengerRepository : IMessengerRepository
             Email = email,
             DisplayName = displayName
         };
-        // UserManager.CreateAsync не поддерживает CancellationToken
         var result = await _userManager.CreateAsync(user, password);
         if (!result.Succeeded)
             throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
@@ -128,8 +142,7 @@ public class MessengerRepository : IMessengerRepository
     {
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
-        if (msg is null)
-            return false;
+        if (msg is null) return false;
         msg.Text = newText;
         msg.EditedAt = editedAtUtc;
         await db.SaveChangesAsync(cancellationToken);
@@ -140,8 +153,7 @@ public class MessengerRepository : IMessengerRepository
     {
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
-        if (msg is null)
-            return false;
+        if (msg is null) return false;
         db.Messages.Remove(msg);
         await db.SaveChangesAsync(cancellationToken);
         return true;
