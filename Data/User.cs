@@ -6,6 +6,6 @@ namespace CorpLinkBaseMinimal.Data
     {
         public string? DisplayName { get; set; }
         public virtual ICollection<ChatParticipant> ChatParticipants { get; set; } = new List<ChatParticipant>();
-        public virtual ICollection<Message> Messages { get; set; } = new List<Message>();
+        public virtual ICollection<Message> Messages { get; set; } = [];
     }
 }

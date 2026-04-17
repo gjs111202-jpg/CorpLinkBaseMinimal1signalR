@@ -43,11 +43,11 @@ public class MessengerService
         }
     }
 
-    public async Task<List<Chat>> GetChatsForUserAsync(string userId)
-        => await _repository.GetChatsForUserAsync(userId);
+    public  Task<List<Chat>> GetChatsForUserAsync(string userId)
+        => _repository.GetChatsForUserAsync(userId);
 
     public async Task<Chat?> GetChatForUserAsync(string userId, int chatId)
-        => await _repository.GetChatForUserAsync(userId, chatId);
+        => await _repository.GetChatForUserAsync(userId, chatId);//
 
     public async Task<(bool Success, string Error, Chat? Chat)> CreateDirectChatAsync(string currentUserId, string otherUserId)
     {

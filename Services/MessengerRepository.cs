@@ -15,11 +15,11 @@ public class MessengerRepository : IMessengerRepository
         _userManager = userManager;
     }
 
-    public async Task<List<User>> GetUsersAsync()
+    public async Task<List<User>> GetUsersAsync(CancellationToken cancellationToken)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         
-        return await db.Users.OrderBy(x => x.DisplayName ?? x.UserName).ToListAsync();
+        return await db.Users.OrderBy(x => x.DisplayName ?? x.UserName).ToListAsync(cancellationToken);
     }
 
     public async Task<User?> GetUserAsync(string userId)
@@ -54,7 +54,7 @@ public class MessengerRepository : IMessengerRepository
         await using var db = await _dbFactory.CreateDbContextAsync();
         return await db.Chats
             .AsNoTracking()
-            .Include(c => c.Participants).ThenInclude(p => p.User)
+            .Include(c => c.Participants).ThenInclude(p => p.User)//
             .Include(c => c.Messages.OrderBy(m => m.CreatedAt)).ThenInclude(m => m.Sender)
             .Where(c => c.Participants.Any(p => p.UserId == userId))
             .OrderByDescending(c => c.UpdatedAt)
