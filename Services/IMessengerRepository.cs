@@ -24,4 +24,12 @@ public interface IMessengerRepository
     Task<Message?> GetMessageOwnedByUserAsync(int chatId, int messageId, string senderId, CancellationToken cancellationToken = default);
     Task<bool> UpdateMessageTextAsync(int messageId, string newText, DateTime editedAtUtc, CancellationToken cancellationToken = default);
     Task<bool> DeleteMessageAsync(int messageId, CancellationToken cancellationToken = default);
+
+    Task<List<User>> GetFavoritesAsync(string userId, CancellationToken cancellationToken = default);
+    Task<bool> IsFavoriteAsync(string userId, string favoriteUserId, CancellationToken cancellationToken = default);
+    Task AddFavoriteAsync(string userId, string favoriteUserId, CancellationToken cancellationToken = default);
+    Task RemoveFavoriteAsync(string userId, string favoriteUserId, CancellationToken cancellationToken = default);
+    Task<User?> GetUserWithProfileAsync(string userId, CancellationToken cancellationToken = default);
+    Task UpdateUserProfileAsync(string userId, string? displayName, string? bio, string? status, CancellationToken cancellationToken = default);
+    Task<bool> DeleteChatAsync(int chatId, CancellationToken cancellationToken = default);
 }

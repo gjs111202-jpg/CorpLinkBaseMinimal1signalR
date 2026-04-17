@@ -216,4 +216,41 @@ public class MessengerService
         await _hubContext.Clients.Group($"chat-{chatId}").SendAsync("ReceiveMessage", chatId);
         return (true, string.Empty);
     }
+
+    // === Методы для избранного и профиля ===
+    public Task<List<User>> GetFavoritesAsync(string userId)
+        => _repository.GetFavoritesAsync(userId);
+
+    public Task<bool> IsFavoriteAsync(string userId, string favoriteUserId)
+        => _repository.IsFavoriteAsync(userId, favoriteUserId);
+
+    public async Task AddFavoriteAsync(string userId, string favoriteUserId)
+        => await _repository.AddFavoriteAsync(userId, favoriteUserId);
+
+    public async Task RemoveFavoriteAsync(string userId, string favoriteUserId)
+        => await _repository.RemoveFavoriteAsync(userId, favoriteUserId);
+
+    public Task<User?> GetUserWithProfileAsync(string userId)
+        => _repository.GetUserWithProfileAsync(userId);
+
+    public async Task<bool> UpdateUserProfileAsync(string userId, string? displayName, string? bio, string? status)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            displayName = null;
+        await _repository.UpdateUserProfileAsync(userId, displayName, bio, status);
+        return true;
+    }
+    public async Task<(bool Success, string Error)> DeleteChatAsync(int chatId, string userId)
+    {
+        if (!await _repository.IsChatParticipantAsync(chatId, userId))
+            return (false, "Нет доступа к чату.");
+
+        var deleted = await _repository.DeleteChatAsync(chatId);
+        if (!deleted)
+            return (false, "Чат не найден.");
+
+        // Уведомить всех участников через SignalR об удалении чата
+        await _hubContext.Clients.Group($"chat-{chatId}").SendAsync("ChatDeleted", chatId);
+        return (true, string.Empty);
+    }
 }

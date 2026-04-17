@@ -158,4 +158,86 @@ public class MessengerRepository : IMessengerRepository
         await db.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    // === Новые методы для избранного и профиля ===
+    public async Task<List<User>> GetFavoritesAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Favorites
+            .Where(f => f.UserId == userId)
+            .Include(f => f.FavoriteUser)
+            .Select(f => f.FavoriteUser)
+            .OrderBy(u => u.DisplayName ?? u.UserName)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsFavoriteAsync(string userId, string favoriteUserId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Favorites.AnyAsync(f => f.UserId == userId && f.FavoriteUserId == favoriteUserId, cancellationToken);
+    }
+
+    public async Task AddFavoriteAsync(string userId, string favoriteUserId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        if (await IsFavoriteAsync(userId, favoriteUserId, cancellationToken))
+            return;
+        db.Favorites.Add(new Favorite { UserId = userId, FavoriteUserId = favoriteUserId });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveFavoriteAsync(string userId, string favoriteUserId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var fav = await db.Favorites.FirstOrDefaultAsync(f => f.UserId == userId && f.FavoriteUserId == favoriteUserId, cancellationToken);
+        if (fav is not null)
+        {
+            db.Favorites.Remove(fav);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<User?> GetUserWithProfileAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => new User
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                DisplayName = u.DisplayName,
+                Email = u.Email,
+                Bio = u.Bio,
+                Status = u.Status,
+                AvatarUrl = u.AvatarUrl,
+                CreatedAt = u.CreatedAt
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task UpdateUserProfileAsync(string userId, string? displayName, string? bio, string? status, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null) return;
+        user.DisplayName = displayName;
+        user.Bio = bio;
+        user.Status = status;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> DeleteChatAsync(int chatId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var chat = await db.Chats
+            .Include(c => c.Messages)
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.Id == chatId, cancellationToken);
+        if (chat is null) return false;
+
+        db.Chats.Remove(chat);
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
