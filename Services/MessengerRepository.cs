@@ -7,7 +7,7 @@ namespace CorpLinkBaseMinimal.Services;
 public class MessengerRepository : IMessengerRepository
 {
     private readonly IDbContextFactory<MessengerDbContext> _dbFactory;
-    private readonly UserManager<User> _userManager; // добавим для создания пользователей
+    private readonly UserManager<User> _userManager;
 
     public MessengerRepository(IDbContextFactory<MessengerDbContext> dbFactory, UserManager<User> userManager)
     {
@@ -15,27 +15,25 @@ public class MessengerRepository : IMessengerRepository
         _userManager = userManager;
     }
 
-    public async Task<List<User>> GetUsersAsync(CancellationToken cancellationToken)
+    public async Task<List<User>> GetUsersAsync(CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await db.Users.OrderBy(x => x.DisplayName ?? x.UserName).ToListAsync(cancellationToken);
     }
 
-    public async Task<User?> GetUserAsync(string userId)
+    public async Task<User?> GetUserAsync(string userId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Users.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
     }
 
-    public async Task<bool> IsUserNameExistsAsync(string name)
+    public async Task<bool> IsUserNameExistsAsync(string name, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        
-        return await db.Users.AnyAsync(x => x.UserName!.ToLower() == name.ToLower());
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Users.AnyAsync(x => x.UserName!.ToLower() == name.ToLower(), cancellationToken);
     }
 
-    public async Task<User> CreateUserAsync(string userName, string displayName, string email, string password)
+    public async Task<User> CreateUserAsync(string userName, string displayName, string email, string password, CancellationToken cancellationToken = default)
     {
         var user = new User
         {
@@ -43,108 +41,109 @@ public class MessengerRepository : IMessengerRepository
             Email = email,
             DisplayName = displayName
         };
+        // UserManager.CreateAsync не поддерживает CancellationToken
         var result = await _userManager.CreateAsync(user, password);
         if (!result.Succeeded)
             throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
         return user;
     }
 
-    public async Task<List<Chat>> GetChatsForUserAsync(string userId)
+    public async Task<List<Chat>> GetChatsForUserAsync(string userId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await db.Chats
             .AsNoTracking()
-            .Include(c => c.Participants).ThenInclude(p => p.User)//
+            .Include(c => c.Participants).ThenInclude(p => p.User)
             .Include(c => c.Messages.OrderBy(m => m.CreatedAt)).ThenInclude(m => m.Sender)
             .Where(c => c.Participants.Any(p => p.UserId == userId))
             .OrderByDescending(c => c.UpdatedAt)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<Chat?> GetChatForUserAsync(string userId, int chatId)
+    public async Task<Chat?> GetChatForUserAsync(string userId, int chatId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await db.Chats
             .AsNoTracking()
             .Include(c => c.Participants).ThenInclude(p => p.User)
             .Include(c => c.Messages.OrderBy(m => m.CreatedAt)).ThenInclude(m => m.Sender)
-            .FirstOrDefaultAsync(c => c.Id == chatId && c.Participants.Any(p => p.UserId == userId));
+            .FirstOrDefaultAsync(c => c.Id == chatId && c.Participants.Any(p => p.UserId == userId), cancellationToken);
     }
 
-    public async Task<bool> IsChatParticipantAsync(int chatId, string userId)
+    public async Task<bool> IsChatParticipantAsync(int chatId, string userId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Chats.AnyAsync(c => c.Id == chatId && c.Participants.Any(p => p.UserId == userId));
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Chats.AnyAsync(c => c.Id == chatId && c.Participants.Any(p => p.UserId == userId), cancellationToken);
     }
 
-    public async Task<Chat?> GetChatWithParticipantsAndMessagesAsync(int chatId)
+    public async Task<Chat?> GetChatWithParticipantsAndMessagesAsync(int chatId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await db.Chats
             .Include(c => c.Participants).ThenInclude(p => p.User)
             .Include(c => c.Messages.OrderBy(m => m.CreatedAt)).ThenInclude(m => m.Sender)
-            .FirstOrDefaultAsync(c => c.Id == chatId);
+            .FirstOrDefaultAsync(c => c.Id == chatId, cancellationToken);
     }
 
-    public async Task<Chat> CreateDirectChatAsync(Chat chat)
+    public async Task<Chat> CreateDirectChatAsync(Chat chat, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         db.Chats.Add(chat);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
         return chat;
     }
 
-    public async Task<Message> AddMessageAsync(Message message)
+    public async Task<Message> AddMessageAsync(Message message, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         db.Messages.Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
         return message;
     }
 
-    public async Task UpdateChatUpdatedAtAsync(int chatId, DateTime updatedAt)
+    public async Task UpdateChatUpdatedAtAsync(int chatId, DateTime updatedAt, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var chat = await db.Chats.FirstAsync(c => c.Id == chatId);
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var chat = await db.Chats.FirstAsync(c => c.Id == chatId, cancellationToken);
         chat.UpdatedAt = updatedAt;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<Message?> LoadMessageWithSenderAsync(Message message)
+    public async Task<Message?> LoadMessageWithSenderAsync(Message message, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        await db.Entry(message).Reference(m => m.Sender).LoadAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        await db.Entry(message).Reference(m => m.Sender).LoadAsync(cancellationToken);
         return message;
     }
 
-    public async Task<Message?> GetMessageOwnedByUserAsync(int chatId, int messageId, string senderId)
+    public async Task<Message?> GetMessageOwnedByUserAsync(int chatId, int messageId, string senderId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await db.Messages
             .AsTracking()
-            .FirstOrDefaultAsync(m => m.Id == messageId && m.ChatId == chatId && m.SenderId == senderId);
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ChatId == chatId && m.SenderId == senderId, cancellationToken);
     }
 
-    public async Task<bool> UpdateMessageTextAsync(int messageId, string newText, DateTime editedAtUtc)
+    public async Task<bool> UpdateMessageTextAsync(int messageId, string newText, DateTime editedAtUtc, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
         if (msg is null)
             return false;
         msg.Text = newText;
         msg.EditedAt = editedAtUtc;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
         return true;
     }
 
-    public async Task<bool> DeleteMessageAsync(int messageId)
+    public async Task<bool> DeleteMessageAsync(int messageId, CancellationToken cancellationToken = default)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var msg = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
         if (msg is null)
             return false;
         db.Messages.Remove(msg);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

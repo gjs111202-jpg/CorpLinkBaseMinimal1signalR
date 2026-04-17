@@ -15,8 +15,11 @@ public class MessengerService
         _hubContext = hubContext;
     }
 
-    public async Task<List<User>> GetUsersAsync() => await _repository.GetUsersAsync();
-    public async Task<User?> GetUserAsync(string userId) => await _repository.GetUserAsync(userId);
+    public Task<List<User>> GetUsersAsync(CancellationToken cancellationToken = default)
+        => _repository.GetUsersAsync(cancellationToken);
+
+    public Task<User?> GetUserAsync(string userId, CancellationToken cancellationToken = default)
+        => _repository.GetUserAsync(userId, cancellationToken);
 
     public async Task<(bool Success, string Error, User? User)> CreateUserAsync(string userName, string displayName, string email, string password)
     {
@@ -46,8 +49,8 @@ public class MessengerService
     public  Task<List<Chat>> GetChatsForUserAsync(string userId)
         => _repository.GetChatsForUserAsync(userId);
 
-    public async Task<Chat?> GetChatForUserAsync(string userId, int chatId)
-        => await _repository.GetChatForUserAsync(userId, chatId);//
+    public Task<Chat?> GetChatForUserAsync(string userId, int chatId, CancellationToken cancellationToken = default)
+        => _repository.GetChatForUserAsync(userId, chatId, cancellationToken);//
 
     public async Task<(bool Success, string Error, Chat? Chat)> CreateDirectChatAsync(string currentUserId, string otherUserId)
     {

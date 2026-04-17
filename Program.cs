@@ -116,7 +116,7 @@ using (var scope = app.Services.CreateScope())
 {
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MessengerDbContext>>();
     await using var dbContext = await dbFactory.CreateDbContextAsync();
-    dbContext.Database.Migrate();
+    await dbContext.Database.MigrateAsync();
 }
 
 app.Run();
