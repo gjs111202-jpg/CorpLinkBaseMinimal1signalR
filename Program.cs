@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-
+builder.Services.AddScoped<ThemeService>();
 builder.Services.AddDbContextFactory<MessengerDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -102,6 +102,12 @@ app.MapPost("/auth/register", async (HttpContext context, SignInManager<User> si
             _ => "unknown"
         };
         return Results.Redirect($"/register?returnUrl={Uri.EscapeDataString(returnUrl)}&error={errorParam}");
+    }
+
+   
+    if (result.User is null)
+    {
+        return Results.Redirect($"/register?returnUrl={Uri.EscapeDataString(returnUrl)}&error=unknown");
     }
 
     await signInManager.SignInAsync(result.User, isPersistent: false);

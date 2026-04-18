@@ -15,12 +15,25 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
 @inject IJSRuntime JS
+@inject ThemeService ThemeService
 
 <PageTitle>CorpLink — Чат</PageTitle>
 
-<div class="chat-layout">
+<div class="chat-layout @(ThemeService.IsDarkMode ? "dark-theme" : "light-theme")">
+    <!-- Кнопка переключения темы -->
+    <button class="theme-toggle-btn" @onclick="ToggleTheme" title="Сменить тему">
+        @if (ThemeService.IsDarkMode)
+        {
+            <span>☀️</span>
+        }
+        else
+        {
+            <span>🌙</span>
+        }
+    </button>
+
     <aside class="sidebar">
-        <div class="brand">💬 CorpLink</div>
+        <div class="brand">📝 CorpLink</div>
         
         <div class="block">
             <div class="block-title">👤 Мой профиль</div>
@@ -53,30 +66,30 @@
             </button>
         </div>
 
-<div class="block">
-    <div class="block-title">⭐ Избранное</div>
-    <div class="chats-container">
-        @if (!favorites.Any())
-        {
-            <div class="empty">Нет избранных</div>
-        }
-        else
-        {
-            @foreach (var fav in favorites)
-{
-    <div class="chat-item">
-        <div class="chat-avatar" @onclick="() => OpenProfile(fav.Id)">@GetAvatarLetter(fav)</div>
-        <div class="chat-content" @onclick="() => OpenProfile(fav.Id)">
-            <div class="chat-title">@(fav.DisplayName ?? fav.UserName)</div>
+        <div class="block">
+            <div class="block-title">⭐ Избранное</div>
+            <div class="chats-container">
+                @if (!favorites.Any())
+                {
+                    <div class="empty">Нет избранных</div>
+                }
+                else
+                {
+                    @foreach (var fav in favorites)
+                    {
+                        <div class="chat-item">
+                            <div class="chat-avatar" @onclick="() => OpenProfile(fav.Id)">@GetAvatarLetter(fav)</div>
+                            <div class="chat-content" @onclick="() => OpenProfile(fav.Id)">
+                                <div class="chat-title">@(fav.DisplayName ?? fav.UserName)</div>
+                            </div>
+                            <div class="favorite-remove">
+                                <button class="icon-btn remove-fav-btn" @onclick="() => RemoveFromFavorites(fav.Id)" title="Удалить из избранного">❌</button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
         </div>
-        <div class="favorite-remove">
-            <button class="icon-btn remove-fav-btn" @onclick="() => RemoveFromFavorites(fav.Id)" title="Удалить из избранного">❌</button>
-        </div>
-    </div>
-}
-        }
-    </div>
-</div>
 
         <div class="block">
             <div class="block-title">💬 Мои чаты</div>
@@ -93,12 +106,14 @@
                         var lastMessage = chat.Messages.LastOrDefault();
                         var otherUser = chat.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User;
                         var chatTitle = otherUser?.DisplayName ?? otherUser?.UserName ?? chat.Title;
+                        var isFavorite = favorites.Any(f => f.Id == otherUser?.Id);
+                        var otherUserId = otherUser?.Id;
                         
-                        <div class="chat-item @(active ? "active" : "")" @onclick="() => SelectChat(chat.Id)">
-                            <div class="chat-avatar">
+                        <div class="chat-item @(active ? "active" : "")">
+                            <div class="chat-avatar" @onclick="() => SelectChat(chat.Id)">
                                 @(chatTitle.Length >= 2 ? chatTitle[..2].ToUpper() : chatTitle[..1].ToUpper())
                             </div>
-                            <div class="chat-content">
+                            <div class="chat-content" @onclick="() => SelectChat(chat.Id)">
                                 <div class="chat-title">@chatTitle</div>
                                 <div class="chat-preview">
                                     @if (lastMessage is null)
@@ -115,6 +130,20 @@
                             {
                                 <div class="chat-time">@lastMessage.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
                             }
+                            <div class="favorite-star">
+                                <button class="star-btn @(isFavorite ? "active" : "")"
+                                        @onclick="() => ToggleFavorite(otherUserId!, isFavorite)"
+                                        title="@(isFavorite ? "Удалить из избранного" : "Добавить в избранное")">
+                                    @if (isFavorite)
+                                    {
+                                        <text>⭐</text>
+                                    }
+                                    else
+                                    {
+                                        <text>☆</text>
+                                    }
+                                </button>
+                            </div>
                         </div>
                     }
                 }
@@ -126,7 +155,7 @@
         @if (selectedChat is null)
         {
             <div class="placeholder">
-                <div class="placeholder-icon">💬</div>
+                <div class="placeholder-icon">📨</div>
                 <h3>Выберите чат</h3>
                 <p>Начните диалог или создайте новый чат</p>
             </div>
@@ -145,61 +174,70 @@
                         </div>
                     </div>
                     <div class="chat-header-actions">
-    <button class="icon-btn delete-chat-btn" @onclick="DeleteCurrentChat" title="Удалить чат">🗑️</button>
-</div>
+                        <button class="icon-btn delete-chat-btn" @onclick="DeleteCurrentChat" title="Удалить чат">🗑️</button>
+                    </div>
                 </div>
             </div>
             
-            <div class="messages" @ref="messagesContainer">
-                @if (!selectedChat.Messages.Any())
-                {
-                    <div class="empty-messages">
-                        <div class="empty-icon">💭</div>
-                        <p>Напишите первое сообщение</p>
-                    </div>
-                }
-                else
-                {
-                    @foreach (var message in selectedChat.Messages.OrderBy(m => m.CreatedAt))
+            <div class="messages-container" @ref="messagesContainer">
+                <div class="messages">
+                    @if (!selectedChat.Messages.Any())
                     {
-                        var mine = message.SenderId == currentUserId;
-                        <div class="message-wrap @(mine ? "mine" : "other")">
-                            <div class="message-bubble">
-                                <div class="message-author">@(message.Sender?.DisplayName ?? message.Sender?.UserName)</div>
-                                
-                                @if (mine && editingMessageId == message.Id)
-                                {
-                                    <textarea class="input edit-area" @bind="editMessageText" @bind:event="oninput" rows="3"></textarea>
-                                    <div class="message-actions">
-                                        <button class="btn btn-sm" @onclick="SaveEditAsync">💾 Сохранить</button>
-                                        <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">❌ Отмена</button>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="message-body">@message.Text</div>
-                                    @if (message.EditedAt.HasValue)
-                                    {
-                                        <div class="message-edited">✏️ изменено</div>
-                                    }
-                                    @if (mine)
-                                    {
-                                        <div class="message-actions">
-                                            <button class="icon-btn edit-btn" @onclick="() => StartEdit(message)" title="Изменить">
-                                                ✏️ Изменить
-                                            </button>
-                                            <button class="icon-btn delete-btn" @onclick="() => DeleteMessageAsync(message)" title="Удалить">
-                                                🗑️ Удалить
-                                            </button>
-                                        </div>
-                                    }
-                                }
-                                <div class="message-time">@message.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
-                            </div>
+                        <div class="empty-messages">
+                            <div class="empty-icon">💭</div>
+                            <p>Напишите первое сообщение</p>
                         </div>
                     }
-                }
-                <div class="scroll-anchor"></div>
+                    else
+                    {
+                        @foreach (var message in selectedChat.Messages.OrderBy(m => m.CreatedAt))
+                        {
+                            var mine = message.SenderId == currentUserId;
+                            <div class="message-wrap @(mine ? "mine" : "other")">
+                                <div class="message-bubble">
+                                    <div class="message-author">@(message.Sender?.DisplayName ?? message.Sender?.UserName)</div>
+                                    
+                                    @if (mine && editingMessageId == message.Id)
+                                    {
+                                        <textarea class="input edit-area" @bind="editMessageText" @bind:event="oninput" rows="3"></textarea>
+                                        <div class="edit-actions">
+                                            <button class="btn btn-sm" @onclick="SaveEditAsync">💾 Сохранить</button>
+                                            <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">❌ Отмена</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="message-body">@message.Text</div>
+                                        @if (message.EditedAt.HasValue)
+                                        {
+                                            <div class="message-edited">✏️ изменено</div>
+                                        }
+                                        @if (mine)
+                                        {
+                                            <div class="message-menu">
+                                                <button class="menu-trigger" @onclick="() => ToggleMessageMenu(message.Id)">
+                                                    ...
+                                                </button>
+                                                @if (activeMessageMenu == message.Id)
+                                                {
+                                                    <div class="menu-dropdown">
+                                                        <button class="menu-item" @onclick="() => StartEdit(message)">
+                                                            ✏️ Изменить
+                                                        </button>
+                                                        <button class="menu-item delete" @onclick="() => DeleteMessageAsync(message)">
+                                                            🗑 Удалить
+                                                        </button>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    }
+                                    <div class="message-time">@message.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
             </div>
             
             <div class="composer">
@@ -238,6 +276,14 @@
             element.scrollTop = element.scrollHeight;
         }
     };
+    
+    window.initClickOutside = (dotNetHelper) => {
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.message-menu')) {
+                dotNetHelper.invokeMethodAsync('CloseMenu');
+            }
+        });
+    };
 </script>
 
 <style>
@@ -247,41 +293,131 @@
         box-sizing: border-box;
     }
 
+    /* Кнопка переключения темы */
+    .theme-toggle-btn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+        .theme-toggle-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+    .dark-theme .theme-toggle-btn {
+        background: rgba(30, 30, 30, 0.9);
+        color: white;
+    }
+
+    /* Светлая тема */
+    .light-theme {
+        --bg-primary: #f0f2f5;
+        --bg-secondary: white;
+        --bg-sidebar: white;
+        --bg-message: white;
+        --bg-message-mine: #2f5fe3;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border-color: #e4e6eb;
+        --shadow-color: rgba(0, 0, 0, 0.05);
+        --hover-bg: #eef2ff;
+        --input-bg: white;
+        --input-border: #d1d5db;
+        --toast-error: #ef4444;
+        --toast-success: #22c55e;
+        --star-color: #fbbf24;
+        --brand-color: #2f5fe3;
+        --online-status: #22c55e;
+        --chat-avatar-bg: #eef2ff;
+        --chat-avatar-color: #2f5fe3;
+        --message-author-other: #2f5fe3;
+        --message-author-mine: #bfdbfe;
+        --scrollbar-track: #f1f1f1;
+        --scrollbar-thumb: #cbd5e1;
+    }
+
+    /* Темная тема - исправленные цвета */
+    .dark-theme {
+        --bg-primary: #0f0f0f;
+        --bg-secondary: #1e1e1e;
+        --bg-sidebar: #1a1a1a;
+        --bg-message: #2a2a2a;
+        --bg-message-mine: #2f5fe3;
+        --text-primary: #e8e8e8;
+        --text-secondary: #a0a0a0;
+        --border-color: #2a2a2a;
+        --shadow-color: rgba(0, 0, 0, 0.5);
+        --hover-bg: #2a2a2a;
+        --input-bg: #2a2a2a;
+        --input-border: #3a3a3a;
+        --toast-error: #dc2626;
+        --toast-success: #16a34a;
+        --star-color: #fbbf24;
+        --brand-color: #2f5fe3;
+        --online-status: #22c55e;
+        --chat-avatar-bg: #2a2a2a;
+        --chat-avatar-color: #6b8cff;
+        --message-author-other: #6b8cff;
+        --message-author-mine: #a0c0ff;
+        --scrollbar-track: #1a1a1a;
+        --scrollbar-thumb: #3a3a3a;
+    }
+
     .chat-layout {
         display: grid;
         grid-template-columns: 360px 1fr;
-        min-height: 100vh;
-        background: #f0f2f5;
+        height: 100vh;
+        background: var(--bg-primary);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        overflow: hidden;
+        transition: background 0.3s ease;
     }
 
     .sidebar {
-        background: white;
-        border-right: 1px solid #e4e6eb;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border-color);
         display: flex;
         flex-direction: column;
         overflow-y: auto;
+        height: 100vh;
+        transition: background 0.3s ease;
     }
 
     .brand {
         font-size: 24px;
         font-weight: 800;
         padding: 20px;
-        color: #2f5fe3;
-        border-bottom: 1px solid #e4e6eb;
+        color: var(--brand-color);
+        border-bottom: 1px solid var(--border-color);
     }
 
     .block {
         margin: 16px;
         padding: 16px;
-        background: #f8f9fa;
+        background: var(--bg-secondary);
         border-radius: 16px;
+        transition: background 0.3s ease;
     }
 
     .block-title {
         font-weight: 600;
         margin-bottom: 12px;
-        color: #1e293b;
+        color: var(--text-primary);
         font-size: 14px;
     }
 
@@ -291,8 +427,9 @@
         gap: 12px;
         margin-bottom: 12px;
         padding: 8px;
-        background: white;
+        background: var(--bg-primary);
         border-radius: 12px;
+        transition: background 0.3s ease;
     }
 
     .user-avatar {
@@ -314,29 +451,30 @@
 
     .user-name {
         font-weight: 600;
-        color: #1e293b;
+        color: var(--text-primary);
     }
 
     .user-status.online {
         font-size: 12px;
-        color: #22c55e;
+        color: var(--online-status);
     }
 
     .input {
         width: 100%;
         padding: 10px 14px;
         border-radius: 12px;
-        border: 1px solid #d1d5db;
-        background: white;
+        border: 1px solid var(--input-border);
+        background: var(--input-bg);
+        color: var(--text-primary);
         font-size: 14px;
         transition: all 0.2s;
     }
 
-    .input:focus {
-        outline: none;
-        border-color: #2f5fe3;
-        box-shadow: 0 0 0 3px rgba(47, 95, 227, 0.1);
-    }
+        .input:focus {
+            outline: none;
+            border-color: #2f5fe3;
+            box-shadow: 0 0 0 3px rgba(47, 95, 227, 0.1);
+        }
 
     .btn {
         padding: 10px 16px;
@@ -350,36 +488,36 @@
         font-size: 14px;
     }
 
-    .btn:hover {
-        background: #1e40af;
-        transform: translateY(-1px);
-    }
+        .btn:hover {
+            background: #1e40af;
+            transform: translateY(-1px);
+        }
 
-    .btn.full {
-        width: 100%;
-        margin-top: 8px;
-    }
+        .btn.full {
+            width: 100%;
+            margin-top: 8px;
+        }
 
-    .btn.btn-logout {
-        background: #ef4444;
-        width: 100%;
-        text-align: center;
-        display: block;
-        text-decoration: none;
-    }
+        .btn.btn-logout {
+            background: #ef4444;
+            width: 100%;
+            text-align: center;
+            display: block;
+            text-decoration: none;
+        }
 
-    .btn.btn-logout:hover {
-        background: #dc2626;
-    }
+            .btn.btn-logout:hover {
+                background: #dc2626;
+            }
 
-    .btn.btn-sm {
-        padding: 6px 12px;
-        font-size: 12px;
-    }
+        .btn.btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
 
-    .btn.btn-secondary {
-        background: #6b7280;
-    }
+        .btn.btn-secondary {
+            background: #6b7280;
+        }
 
     .chats-container {
         max-height: 400px;
@@ -395,27 +533,28 @@
         cursor: pointer;
         transition: all 0.2s;
         margin-bottom: 6px;
+        color: var(--text-primary);
     }
 
-    .chat-item:hover {
-        background: #eef2ff;
-    }
+        .chat-item:hover {
+            background: var(--hover-bg);
+        }
 
-    .chat-item.active {
-        background: #eef2ff;
-        border-left: 3px solid #2f5fe3;
-    }
+        .chat-item.active {
+            background: var(--hover-bg);
+            border-left: 3px solid #2f5fe3;
+        }
 
     .chat-avatar {
         width: 48px;
         height: 48px;
-        background: linear-gradient(135deg, #c7d2fe, #a5b4fc);
+        background: linear-gradient(135deg, var(--chat-avatar-bg), var(--border-color));
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: bold;
-        color: #2f5fe3;
+        color: var(--chat-avatar-color);
         font-size: 16px;
         flex-shrink: 0;
     }
@@ -427,13 +566,13 @@
 
     .chat-title {
         font-weight: 600;
-        color: #1e293b;
+        color: var(--text-primary);
         margin-bottom: 4px;
     }
 
     .chat-preview {
         font-size: 13px;
-        color: #64748b;
+        color: var(--text-secondary);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -441,14 +580,55 @@
 
     .chat-time {
         font-size: 11px;
-        color: #94a3b8;
+        color: var(--text-secondary);
         flex-shrink: 0;
     }
+
+    .favorite-star {
+        flex-shrink: 0;
+        margin-left: 8px;
+    }
+
+    .star-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 4px;
+        border-radius: 8px;
+        transition: all 0.2s;
+        color: var(--star-color);
+        opacity: 0.5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+        .star-btn:hover {
+            opacity: 1;
+            transform: scale(1.15);
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .star-btn.active {
+            opacity: 1;
+        }
+
+    .chat-item:hover .star-btn {
+        opacity: 0.8;
+    }
+
+        .chat-item:hover .star-btn:hover {
+            opacity: 1;
+        }
 
     .chat-panel {
         display: flex;
         flex-direction: column;
-        background: white;
+        background: var(--bg-secondary);
+        height: 100vh;
+        overflow: hidden;
+        transition: background 0.3s ease;
     }
 
     .placeholder {
@@ -458,7 +638,7 @@
         align-items: center;
         justify-content: center;
         gap: 16px;
-        color: #94a3b8;
+        color: var(--text-secondary);
     }
 
     .placeholder-icon {
@@ -466,14 +646,16 @@
     }
 
     .placeholder h3 {
-        color: #64748b;
+        color: var(--text-secondary);
         font-weight: 500;
     }
 
     .chat-header {
         padding: 16px 24px;
-        border-bottom: 1px solid #e4e6eb;
-        background: white;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        flex-shrink: 0;
+        transition: background 0.3s ease;
     }
 
     .chat-header-info {
@@ -498,23 +680,29 @@
     .chat-name {
         font-size: 18px;
         font-weight: 700;
-        color: #1e293b;
+        color: var(--text-primary);
     }
 
     .chat-subtitle {
         font-size: 12px;
-        color: #64748b;
+        color: var(--text-secondary);
         margin-top: 2px;
     }
 
-    .messages {
+    .messages-container {
         flex: 1;
-        padding: 20px;
         overflow-y: auto;
+        overflow-x: hidden;
+        min-height: 0;
+    }
+
+    .messages {
+        padding: 20px;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        background: #f8fafc;
+        background: var(--bg-primary);
+        transition: background 0.3s ease;
     }
 
     .message-wrap {
@@ -522,47 +710,54 @@
         animation: fadeIn 0.2s ease;
     }
 
-    .message-wrap.mine {
-        justify-content: flex-end;
-    }
+        .message-wrap.mine {
+            justify-content: flex-end;
+        }
 
-    .message-wrap.other {
-        justify-content: flex-start;
-    }
+        .message-wrap.other {
+            justify-content: flex-start;
+        }
 
     .message-bubble {
         max-width: 70%;
         padding: 10px 14px;
         border-radius: 18px;
-        background: white;
-        border: 1px solid #e4e8f0;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        background: var(--bg-message);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 1px 2px var(--shadow-color);
+        transition: background 0.3s ease;
+        color: var(--text-primary);
     }
 
     .mine .message-bubble {
-        background: #2f5fe3;
-        border-color: #2f5fe3;
+        background: var(--bg-message-mine);
+        border-color: var(--bg-message-mine);
         color: white;
     }
 
     .message-author {
-        font-size: 12px;
-        font-weight: 600;
+        font-size: 14px;
+        font-weight: 700;
         margin-bottom: 4px;
     }
 
     .mine .message-author {
-        color: #bfdbfe;
+        color: var(--message-author-mine);
     }
 
     .other .message-author {
-        color: #2f5fe3;
+        color: var(--message-author-other);
     }
 
     .message-body {
         font-size: 14px;
         word-wrap: break-word;
         white-space: pre-wrap;
+        color: var(--text-primary);
+    }
+
+    .mine .message-body {
+        color: white;
     }
 
     .message-edited {
@@ -572,38 +767,79 @@
         font-style: italic;
     }
 
-    .message-actions {
+    .edit-actions {
         margin-top: 8px;
         display: flex;
         gap: 12px;
     }
 
-    .icon-btn {
+    .message-menu {
+        position: relative;
+        display: inline-block;
+        margin-top: 8px;
+    }
+
+    .menu-trigger {
         background: none;
         border: none;
-        font-size: 12px;
+        font-size: 18px;
         cursor: pointer;
+        color: inherit;
+        opacity: 0.6;
         padding: 4px 8px;
         border-radius: 6px;
         transition: all 0.2s;
-        font-weight: 500;
     }
 
-    .edit-btn {
-        color: #2f5fe3;
+        .menu-trigger:hover {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+    .mine .menu-trigger:hover {
+        background: rgba(255, 255, 255, 0.2);
     }
 
-    .edit-btn:hover {
-        background: #eef2ff;
+    .menu-dropdown {
+        position: absolute;
+        bottom: 100%;
+        right: 0;
+        margin-bottom: 8px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 100;
+        min-width: 150px;
+        overflow: hidden;
     }
 
-    .delete-btn {
-        color: #ef4444;
+    .menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 16px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        color: var(--text-primary);
+        transition: background 0.2s;
+        text-align: left;
     }
 
-    .delete-btn:hover {
-        background: #fef2f2;
-    }
+        .menu-item:hover {
+            background: var(--hover-bg);
+        }
+
+        .menu-item.delete {
+            color: #ef4444;
+        }
+
+            .menu-item.delete:hover {
+                background: rgba(239, 68, 68, 0.1);
+            }
 
     .edit-area {
         margin-top: 6px;
@@ -617,12 +853,13 @@
         margin-top: 4px;
         text-align: right;
         opacity: 0.7;
+        color: var(--text-secondary);
     }
 
     .empty-messages {
         text-align: center;
         padding: 60px;
-        color: #94a3b8;
+        color: var(--text-secondary);
     }
 
     .empty-icon {
@@ -632,8 +869,10 @@
 
     .composer {
         padding: 16px 20px;
-        background: white;
-        border-top: 1px solid #e4e6eb;
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+        flex-shrink: 0;
+        transition: background 0.3s ease;
     }
 
     .composer-wrapper {
@@ -650,10 +889,10 @@
         white-space: nowrap;
     }
 
-    .send-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
     .toast {
         position: fixed;
@@ -661,7 +900,7 @@
         right: 24px;
         padding: 12px 20px;
         border-radius: 12px;
-        color: white;
+        color: green;
         font-weight: 500;
         z-index: 1000;
         display: flex;
@@ -670,17 +909,17 @@
         animation: slideIn 0.3s ease;
     }
 
-    .toast.error {
-        background: #ef4444;
-    }
+        .toast.error {
+            background: var(--toast-error);
+        }
 
-    .toast.success {
-        background: #22c55e;
-    }
+        .toast.success {
+            background: var(--toast-success);
+        }
 
     .empty {
         text-align: center;
-        color: #94a3b8;
+        color: var(--text-secondary);
         padding: 20px;
     }
 
@@ -689,6 +928,7 @@
             opacity: 0;
             transform: translateY(10px);
         }
+
         to {
             opacity: 1;
             transform: translateY(0);
@@ -700,6 +940,7 @@
             opacity: 0;
             transform: translateX(100px);
         }
+
         to {
             opacity: 1;
             transform: translateX(0);
@@ -711,12 +952,12 @@
     }
 
     ::-webkit-scrollbar-track {
-        background: #f1f1f1;
+        background: var(--scrollbar-track);
         border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
+        background: var(--scrollbar-thumb);
         border-radius: 3px;
     }
 
@@ -740,35 +981,47 @@
         .composer {
             padding: 12px;
         }
+
+        .theme-toggle-btn {
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+        }
     }
 
     .chat-header-actions {
-    margin-left: auto;
-}
-.delete-chat-btn {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #ef4444;
-}
-.delete-chat-btn:hover {
-    opacity: 0.8;
-}
-.favorite-remove {
-    flex-shrink: 0;
-}
-.remove-fav-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    opacity: 0.6;
-}
-.remove-fav-btn:hover {
-    opacity: 1;
-}
-
+        margin-left: auto;
+    }
+    
+    .delete-chat-btn {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #ef4444;
+    }
+    
+        .delete-chat-btn:hover {
+            opacity: 0.8;
+        }
+    
+    .favorite-remove {
+        flex-shrink: 0;
+    }
+    
+    .remove-fav-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        opacity: 0.6;
+    }
+    
+        .remove-fav-btn:hover {
+            opacity: 1;
+        }
 </style>
 
 @code {
@@ -788,43 +1041,108 @@
     private string editMessageText = string.Empty;
     private ElementReference messagesContainer;
     private ElementReference messageInput;
-
-    private string selectedChatTitle => selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.DisplayName ?? 
-                                        selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.UserName ?? 
+    private bool needScroll = false;
+    private int? activeMessageMenu = null;
+    private CancellationTokenSource? toastCts;
+    private string selectedChatTitle => selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.DisplayName ??
+                                        selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.UserName ??
                                         selectedChat?.Title ?? "Чат";
 
-protected override async Task OnInitializedAsync()
-{
-    var authState = await AuthProvider.GetAuthenticationStateAsync();
-    var user = authState.User;
-    currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-    if (!string.IsNullOrEmpty(currentUserId))
+    protected override async Task OnInitializedAsync()
     {
-        await LoadUsersAndChatsAsync();
-        await InitializeSignalRAsync();
-
-        if (!string.IsNullOrEmpty(ChatId) && int.TryParse(ChatId, out int chatId))
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        if (!string.IsNullOrEmpty(currentUserId))
         {
-            var chat = chats.FirstOrDefault(c => c.Id == chatId);
-            if (chat != null)
-                await SelectChat(chatId);
-            else
+            await LoadUsersAndChatsAsync();
+            await InitializeSignalRAsync();
+
+            if (!string.IsNullOrEmpty(ChatId) && int.TryParse(ChatId, out int chatId))
             {
-                // Чата ещё нет в списке (только что создан) – перезагрузим
-                await LoadUsersAndChatsAsync();
-                if (chats.Any(c => c.Id == chatId))
+                var chat = chats.FirstOrDefault(c => c.Id == chatId);
+                if (chat != null)
                     await SelectChat(chatId);
+                else
+                {
+                    await LoadUsersAndChatsAsync();
+                    if (chats.Any(c => c.Id == chatId))
+                        await SelectChat(chatId);
+                }
             }
         }
     }
-}
-
+    private async Task ShowToast(string message, bool isError)
+    {
+        if (isError)
+        {
+            errorMessage = message;
+            successMessage = "";
+        }
+        else
+        {
+            successMessage = message;
+            errorMessage = "";
+        }
+    
+        await InvokeAsync(StateHasChanged);
+    
+        
+        toastCts?.Cancel();
+        toastCts = new CancellationTokenSource();
+    
+        try
+        {
+            await Task.Delay(3000, toastCts.Token);
+            errorMessage = "";
+            successMessage = "";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+           
+        }
+    }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (selectedChat != null && messagesContainer.Id != null)
+        if (firstRender)
         {
+            await ThemeService.LoadThemeAsync();
+            ThemeService.OnThemeChanged += OnThemeChanged;
+            await JS.InvokeVoidAsync("initClickOutside", DotNetObjectReference.Create(this));
+        }
+        
+        if (needScroll && messagesContainer.Id != null)
+        {
+            needScroll = false;
+            await Task.Delay(50);
             await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
         }
+    }
+
+    private async void OnThemeChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleTheme()
+    {
+        await ThemeService.ToggleThemeAsync();
+    }
+
+    [JSInvokable]
+    public void CloseMenu()
+    {
+        activeMessageMenu = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleMessageMenu(int messageId)
+    {
+        if (activeMessageMenu == messageId)
+            activeMessageMenu = null;
+        else
+            activeMessageMenu = messageId;
     }
 
     private async Task InitializeSignalRAsync()
@@ -837,7 +1155,8 @@ protected override async Task OnInitializedAsync()
         hubConnection.On<int>("ReceiveMessage", async chatId =>
         {
             await RefreshAfterSignalRAsync(chatId);
-            await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
+            needScroll = true;
+            await InvokeAsync(StateHasChanged);
         });
 
         hubConnection.On<int>("ChatListChanged", async chatId =>
@@ -887,19 +1206,19 @@ protected override async Task OnInitializedAsync()
         ClearMessages();
         if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrWhiteSpace(searchQuery))
         {
-            errorMessage = "Введите логин или email";
+            await ShowToast("Введите логин или email", true);
             return;
         }
 
-        var result = await MessengerService.CreateDirectChatBySearchAsync(currentUserId, searchQuery);
+        var result = await MessengerService.CreateDirectChatBySearchAsync(currentUserId, searchQuery.Trim());
         if (!result.Success)
         {
-            errorMessage = result.Error;
+            await ShowToast(result.Error ?? "Ошибка создания чата", true);
             return;
         }
 
         searchQuery = string.Empty;
-        successMessage = "Чат создан";
+        await ShowToast("Чат создан", false);
         await LoadUsersAndChatsAsync();
 
         if (result.Chat is not null)
@@ -916,12 +1235,14 @@ protected override async Task OnInitializedAsync()
         selectedChat = await MessengerService.GetChatForUserAsync(currentUserId, chatId);
         joinedChatId = selectedChat?.Id;
         CancelEdit();
+        activeMessageMenu = null;
 
         if (hubConnection is not null && joinedChatId.HasValue)
             await hubConnection.SendAsync("JoinChat", $"chat-{joinedChatId.Value}");
 
         await InvokeAsync(StateHasChanged);
-        await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
+        needScroll = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void GoToMyProfile()
@@ -940,6 +1261,7 @@ protected override async Task OnInitializedAsync()
     {
         editingMessageId = message.Id;
         editMessageText = message.Text;
+        activeMessageMenu = null;
     }
 
     private void CancelEdit()
@@ -949,15 +1271,15 @@ protected override async Task OnInitializedAsync()
     }
 
     private void OpenProfile(string userId)
-{
-    Navigation.NavigateTo($"/profile/{userId}");
-}
+    {
+        Navigation.NavigateTo($"/profile/{userId}");
+    }
 
-private string GetAvatarLetter(User user)
-{
-    var name = user.DisplayName ?? user.UserName;
-    return string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpper();
-}
+    private string GetAvatarLetter(User user)
+    {
+        var name = user.DisplayName ?? user.UserName;
+        return string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpper();
+    }
 
     private async Task SaveEditAsync()
     {
@@ -974,6 +1296,8 @@ private string GetAvatarLetter(User user)
 
         CancelEdit();
         await RefreshAfterSignalRAsync(selectedChat.Id);
+        needScroll = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task DeleteMessageAsync(Message message)
@@ -982,18 +1306,23 @@ private string GetAvatarLetter(User user)
         if (selectedChat is null || string.IsNullOrEmpty(currentUserId))
             return;
 
+       
+        if (!await JS.InvokeAsync<bool>("confirm", "Удалить это сообщение без возможности восстановления?"))
+            return;
+
         var result = await MessengerService.DeleteMessageAsync(selectedChat.Id, message.Id, currentUserId);
         if (!result.Success)
         {
-            errorMessage = result.Error;
+            await ShowToast(result.Error ?? "Ошибка удаления", true);
             return;
         }
 
         if (editingMessageId == message.Id)
             CancelEdit();
 
+        activeMessageMenu = null;
         await RefreshAfterSignalRAsync(selectedChat.Id);
-        successMessage = "Сообщение удалено";
+        await ShowToast("Сообщение удалено", false);
     }
 
     private async Task SendMessage()
@@ -1011,7 +1340,8 @@ private string GetAvatarLetter(User user)
 
         newMessageText = string.Empty;
         await RefreshAfterSignalRAsync(selectedChat.Id);
-        await JS.InvokeVoidAsync("scrollToBottom", messagesContainer);
+        needScroll = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RefreshAfterSignalRAsync(int chatId)
@@ -1028,8 +1358,37 @@ private string GetAvatarLetter(User user)
 
     private void ClearMessages()
     {
-        errorMessage = string.Empty;
-        successMessage = string.Empty;
+    }
+
+    private async Task ToggleFavorite(string userId, bool isCurrentlyFavorite)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+        
+        try
+        {
+            if (isCurrentlyFavorite)
+            {
+                await MessengerService.RemoveFavoriteAsync(currentUserId, userId);
+                successMessage = "Удалён из избранного";
+            }
+            else
+            {
+                await MessengerService.AddFavoriteAsync(currentUserId, userId);
+                successMessage = "Добавлен в избранное";
+            }
+            
+            await LoadUsersAndChatsAsync();
+            await InvokeAsync(StateHasChanged);
+            
+            await Task.Delay(3000);
+            successMessage = "";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            errorMessage = "Ошибка при добавлении в избранное";
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -1043,29 +1402,32 @@ private string GetAvatarLetter(User user)
             }
             await hubConnection.DisposeAsync();
         }
+        
+        ThemeService.OnThemeChanged -= OnThemeChanged;
     }
 
     private async Task DeleteCurrentChat()
-{
-    if (selectedChat == null) return;
-    if (!await JS.InvokeAsync<bool>("confirm", "Удалить чат без возможности восстановления?")) return;
-
-    var result = await MessengerService.DeleteChatAsync(selectedChat.Id, currentUserId);
-    if (!result.Success)
     {
-        errorMessage = result.Error;
-        return;
+        if (selectedChat == null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "Удалить чат без возможности восстановления?")) return;
+
+        var result = await MessengerService.DeleteChatAsync(selectedChat.Id, currentUserId);
+        if (!result.Success)
+        {
+            await ShowToast(result.Error ?? "Ошибка удаления чата", true);
+            return;
+        }
+
+        selectedChat = null;
+        await LoadUsersAndChatsAsync();
+        await ShowToast("Чат удалён", false);
     }
 
-    selectedChat = null;
-    await LoadUsersAndChatsAsync();
-    successMessage = "Чат удалён";
-}
 
-private async Task RemoveFromFavorites(string favoriteUserId)
-{
-    await MessengerService.RemoveFavoriteAsync(currentUserId, favoriteUserId);
-    await LoadUsersAndChatsAsync(); // обновить список избранного
-    successMessage = "Удалён из избранного";
-}
+    private async Task RemoveFromFavorites(string favoriteUserId)
+    {
+        await MessengerService.RemoveFavoriteAsync(currentUserId, favoriteUserId);
+        await LoadUsersAndChatsAsync();
+        await ShowToast("Удалён из избранного", false);
+    }
 }
