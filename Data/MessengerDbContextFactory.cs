@@ -15,7 +15,7 @@ public class MessengerDbContextFactory : IDesignTimeDbContextFactory<MessengerDb
             .Build();
 
         var optionsBuilder = new DbContextOptionsBuilder<MessengerDbContext>();
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        var connectionString = configuration.GetConnectionString("MessengerCorpLink");
         optionsBuilder.UseNpgsql(connectionString);
 
         return new MessengerDbContext(optionsBuilder.Options);

@@ -47,7 +47,7 @@ dotnet run
 По умолчанию используется:
 
 ```json
-"DefaultConnection": "Host=localhost;Port=5432;Database=corplinkdb;Username=postgres;Password=postgres"
+"MessengerCorpLink": "Host=localhost;Port=5432;Database=corplinkdb;Username=postgres;Password=postgres"
 ```
 
 Поменяй `Password=postgres` на свой пароль.

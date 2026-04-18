@@ -11,7 +11,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<ThemeService>();
 builder.Services.AddDbContextFactory<MessengerDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("MessengerCorpLink")));
 
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
