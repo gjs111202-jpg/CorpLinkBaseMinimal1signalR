@@ -1043,7 +1043,7 @@
     private ElementReference messageInput;
     private bool needScroll = false;
     private int? activeMessageMenu = null;
-
+    private CancellationTokenSource? toastCts;
     private string selectedChatTitle => selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.DisplayName ??
                                         selectedChat?.Participants.FirstOrDefault(p => p.UserId != currentUserId)?.User?.UserName ??
                                         selectedChat?.Title ?? "Чат";
@@ -1072,7 +1072,37 @@
             }
         }
     }
-
+    private async Task ShowToast(string message, bool isError)
+    {
+        if (isError)
+        {
+            errorMessage = message;
+            successMessage = "";
+        }
+        else
+        {
+            successMessage = message;
+            errorMessage = "";
+        }
+    
+        await InvokeAsync(StateHasChanged);
+    
+        
+        toastCts?.Cancel();
+        toastCts = new CancellationTokenSource();
+    
+        try
+        {
+            await Task.Delay(3000, toastCts.Token);
+            errorMessage = "";
+            successMessage = "";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+           
+        }
+    }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -1176,19 +1206,19 @@
         ClearMessages();
         if (string.IsNullOrEmpty(currentUserId) || string.IsNullOrWhiteSpace(searchQuery))
         {
-            errorMessage = "Введите логин или email";
+            await ShowToast("Введите логин или email", true);
             return;
         }
 
         var result = await MessengerService.CreateDirectChatBySearchAsync(currentUserId, searchQuery.Trim());
         if (!result.Success)
         {
-            errorMessage = result.Error ?? "Ошибка создания чата";
+            await ShowToast(result.Error ?? "Ошибка создания чата", true);
             return;
         }
 
         searchQuery = string.Empty;
-        successMessage = "Чат создан";
+        await ShowToast("Чат создан", false);
         await LoadUsersAndChatsAsync();
 
         if (result.Chat is not null)
@@ -1276,10 +1306,14 @@
         if (selectedChat is null || string.IsNullOrEmpty(currentUserId))
             return;
 
+       
+        if (!await JS.InvokeAsync<bool>("confirm", "Удалить это сообщение без возможности восстановления?"))
+            return;
+
         var result = await MessengerService.DeleteMessageAsync(selectedChat.Id, message.Id, currentUserId);
         if (!result.Success)
         {
-            errorMessage = result.Error;
+            await ShowToast(result.Error ?? "Ошибка удаления", true);
             return;
         }
 
@@ -1288,9 +1322,7 @@
 
         activeMessageMenu = null;
         await RefreshAfterSignalRAsync(selectedChat.Id);
-        successMessage = "Сообщение удалено";
-        needScroll = true;
-        await InvokeAsync(StateHasChanged);
+        await ShowToast("Сообщение удалено", false);
     }
 
     private async Task SendMessage()
@@ -1326,8 +1358,6 @@
 
     private void ClearMessages()
     {
-        errorMessage = string.Empty;
-        successMessage = string.Empty;
     }
 
     private async Task ToggleFavorite(string userId, bool isCurrentlyFavorite)
@@ -1354,7 +1384,7 @@
             successMessage = "";
             await InvokeAsync(StateHasChanged);
         }
-        catch (Exception )
+        catch (Exception)
         {
             errorMessage = "Ошибка при добавлении в избранное";
             await InvokeAsync(StateHasChanged);
@@ -1384,19 +1414,20 @@
         var result = await MessengerService.DeleteChatAsync(selectedChat.Id, currentUserId);
         if (!result.Success)
         {
-            errorMessage = result.Error;
+            await ShowToast(result.Error ?? "Ошибка удаления чата", true);
             return;
         }
 
         selectedChat = null;
         await LoadUsersAndChatsAsync();
-        successMessage = "Чат удалён";
+        await ShowToast("Чат удалён", false);
     }
+
 
     private async Task RemoveFromFavorites(string favoriteUserId)
     {
         await MessengerService.RemoveFavoriteAsync(currentUserId, favoriteUserId);
         await LoadUsersAndChatsAsync();
-        successMessage = "Удалён из избранного";
+        await ShowToast("Удалён из избранного", false);
     }
 }
