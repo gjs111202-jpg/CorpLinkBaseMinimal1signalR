@@ -2,11 +2,24 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.AspNetCore.Components.Authorization
+@using CorpLinkBaseMinimal.Services
 @attribute [AllowAnonymous]
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
+@inject ThemeService ThemeService
 
-<div class="login-page">
+<div class="login-page @(ThemeService.IsDarkMode ? "dark-theme" : "light-theme")">
+    <button class="theme-toggle-btn" @onclick="ToggleTheme" title="Сменить тему">
+        @if (ThemeService.IsDarkMode)
+        {
+            <span>☀️</span>
+        }
+        else
+        {
+            <span>🌙</span>
+        }
+    </button>
+
     <div class="login-box">
         <div class="login-title">
             <h1>CorpLink</h1>
@@ -50,11 +63,70 @@
 </div>
 
 <style>
-    /* Простые стили без сложных анимаций */
     * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+    }
+
+    .theme-toggle-btn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+        .theme-toggle-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+    .dark-theme .theme-toggle-btn {
+        background: rgba(30, 30, 30, 0.9);
+        color: white;
+    }
+
+    .light-theme {
+        --bg-secondary: white;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border-color: #e4e6eb;
+        --input-bg: white;
+        --input-border: #d1d5db;
+        --error-bg: #fee2e2;
+        --error-border: #ef4444;
+        --error-text: #dc2626;
+        --btn-bg: #2F5FE3;
+        --btn-hover: #1E40AF;
+        --shadow: rgba(0, 0, 0, 0.1);
+    }
+
+    .dark-theme {
+        --bg-secondary: #2d2d2d;
+        --text-primary: #e4e6eb;
+        --text-secondary: #9ca3af;
+        --border-color: #404040;
+        --input-bg: #3a3a3a;
+        --input-border: #4a4a4a;
+        --error-bg: #442222;
+        --error-border: #ef4444;
+        --error-text: #f87171;
+        --btn-bg: #2F5FE3;
+        --btn-hover: #1E40AF;
+        --shadow: rgba(0, 0, 0, 0.3);
     }
 
     .login-page {
@@ -63,16 +135,17 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-family: Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
     .login-box {
-        background: white;
+        background: var(--bg-secondary);
         padding: 40px;
         border-radius: 20px;
         width: 400px;
         max-width: 90%;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        box-shadow: 0 10px 40px var(--shadow);
+        transition: all 0.3s ease;
     }
 
     .login-title {
@@ -87,7 +160,7 @@
         }
 
         .login-title p {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 14px;
         }
 
@@ -98,7 +171,7 @@
         .input-field label {
             display: block;
             margin-bottom: 8px;
-            color: #333;
+            color: var(--text-primary);
             font-weight: bold;
             font-size: 14px;
         }
@@ -106,10 +179,12 @@
     .input {
         width: 100%;
         padding: 12px;
-        border: 2px solid #ddd;
+        border: 2px solid var(--input-border);
         border-radius: 10px;
         font-size: 14px;
         transition: all 0.3s;
+        background: var(--input-bg);
+        color: var(--text-primary);
     }
 
         .input:focus {
@@ -120,7 +195,7 @@
     .login-btn {
         width: 100%;
         padding: 12px;
-        background: #2F5FE3;
+        background: var(--btn-bg);
         color: white;
         border: none;
         border-radius: 10px;
@@ -128,11 +203,12 @@
         font-weight: bold;
         cursor: pointer;
         margin-bottom: 20px;
-        transition: background 0.3s;
+        transition: all 0.3s;
     }
 
         .login-btn:hover {
-            background: #1E40AF;
+            background: var(--btn-hover);
+            transform: translateY(-1px);
         }
 
     .register-block {
@@ -152,15 +228,14 @@
     .error-message {
         margin-top: 20px;
         padding: 10px;
-        background: #FEE2E2;
-        border: 1px solid #EF4444;
+        background: var(--error-bg);
+        border: 1px solid var(--error-border);
         border-radius: 10px;
-        color: #DC2626;
+        color: var(--error-text);
         text-align: center;
         font-size: 14px;
     }
 
-    /* Адаптив для телефонов */
     @@media (max-width: 600px) {
         .login-box {
             padding: 30px 20px;
@@ -168,6 +243,14 @@
         
         .login-title h1 {
             font-size: 28px;
+        }
+
+        .theme-toggle-btn {
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
         }
     }
 </style>
@@ -186,7 +269,7 @@
         var authState = await AuthProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated == true)
         {
-            Navigation.NavigateTo("/logout", forceLoad: true);
+            Navigation.NavigateTo("/", forceLoad: true);
             return;
         }
 
@@ -202,5 +285,30 @@
         {
             errorMessage = err.ToString() == "credentials" ? "Неверный логин или пароль" : "";
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ThemeService.LoadThemeAsync();
+            ThemeService.OnThemeChanged += OnThemeChanged;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnThemeChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleTheme()
+    {
+        await ThemeService.ToggleThemeAsync();
+    }
+
+    public void Dispose()
+    {
+        ThemeService.OnThemeChanged -= OnThemeChanged;
     }
 }
